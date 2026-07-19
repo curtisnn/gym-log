@@ -1,5 +1,6 @@
 import * as L from './logic.js';
 import * as T from './trends.js';
+import * as R from './rules.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
 
@@ -89,12 +90,9 @@ function renderHome() {
 }
 
 function renderRules() {
-  const rules = Array.isArray(data?.rules) ? data.rules : [];
-  return `<div class="page">
+  return `<div class="page rulespage">
     <div class="topbar"><button data-act="back">‹ Back</button><h1>Rules</h1><span></span></div>
-    ${rules.length
-      ? `<ul class="rules">${rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
-      : '<p class="lead">No rules in the data file.</p>'}
+    ${R.rulesHtml(data?.rules)}
   </div>`;
 }
 

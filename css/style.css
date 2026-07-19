@@ -59,8 +59,19 @@ h1 { font-size: 22px; font-weight: 800; }
   display: block; width: 100%; padding: 13px; border-radius: 16px; margin-bottom: 10px;
   background: var(--card); color: var(--blue); font-size: 15px; font-weight: 600;
 }
-.rules { list-style: none; }
-.rules li { background: var(--card); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+/* Rules page — the strength progression plan */
+.rulespage .globalrule { background: var(--card); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 15px; line-height: 1.45; }
+.rulespage .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.rulespage .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+.tmeta { font-size: 13px; color: var(--dim); line-height: 1.4; margin-bottom: 3px; }
+.tmeta .k { font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .06em; margin-right: 4px; }
+.tmeta.note { font-style: italic; }
+.ladder { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.ladder td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top; line-height: 1.35; }
+.ladder .n { color: var(--dim); width: 18px; font-variant-numeric: tabular-nums; }
+.ladder .trig { color: var(--dim); text-align: right; max-width: 40%; }
+.ladder tr.cur td { color: #fff; font-weight: 600; }
+.ladder .now { background: var(--blue); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 6px; padding: 1px 5px; margin-left: 4px; vertical-align: 1px; }
 
 /* ---------- the paper grid ---------- */
 .grid { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
