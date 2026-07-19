@@ -133,3 +133,27 @@ h1 { font-size: 22px; font-weight: 800; }
   border-top: 1px solid var(--line); font-size: 16px; font-weight: 600;
 }
 .addrow:active { background: var(--card); }
+
+/* ---------- trends ---------- */
+.trends .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.trends .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+.trends svg { display: block; width: 100%; height: auto; }
+.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.month .mn { font-size: 12px; color: var(--dim); text-align: center; margin-bottom: 4px; }
+.month .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.month .days span { aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #4a5261; }
+.month .d.on { background: var(--accent); color: #08130c; font-weight: 700; }
+.hero { border-radius: 18px; padding: 18px 16px 12px; margin-bottom: 12px; color: #fff; }
+.hero.pull { background: linear-gradient(140deg, #274bb0, #3568d4 55%, #4b87e8); }
+.hero.push { background: linear-gradient(140deg, #9c4f13, #c96f28 55%, #e09552); }
+.hero .k { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.hero .big { font-size: 44px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; margin: 2px 0; }
+.hero .big small { font-size: 18px; font-weight: 500; opacity: .85; }
+.hero .delta { font-size: 13px; opacity: .9; margin-bottom: 6px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--card); border-radius: 14px; padding: 12px; text-align: left; width: 100%; }
+.stat .k { font-size: 12px; color: var(--dim); }
+.stat .v { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0; color: var(--text); }
+.stat .v small { font-size: 12px; font-weight: 500; color: var(--dim); }
+.stat.open { grid-column: 1 / -1; }
+.stat .note { font-size: 11px; color: var(--dim); margin-top: 6px; }

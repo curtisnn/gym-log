@@ -1,4 +1,5 @@
 import * as L from './logic.js';
+import * as T from './trends.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
 
@@ -14,6 +15,7 @@ const ui = {
   error: null,        // setup restore error
   busy: false,        // a network call is in flight (setup restore)
   sync: null,         // { state: 'working'|'error'|'auth'|'diverged', msg?, remote? }
+  trendsOpen: null,   // id of the expanded trends card
 };
 
 const $app = document.getElementById('app');
@@ -82,7 +84,7 @@ function renderHome() {
       : 'No sessions yet'}</p>
     ${renderSyncStatus()}
     <button class="primary" data-act="start">Start session</button>
-    <p class="foot"><a href="#rules">Rules</a></p>
+    <p class="foot"><a href="#trends">Trends</a> · <a href="#rules">Rules</a></p>
   </div>`;
 }
 
@@ -94,6 +96,78 @@ function renderRules() {
       ? `<ul class="rules">${rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
       : '<p class="lead">No rules in the data file.</p>'}
   </div>`;
+}
+
+// Variant D of the trends decision: dot calendar, two heroes, expandable cards.
+function renderTrends() {
+  let h = `<div class="page trends">
+    <div class="topbar"><button data-act="back">‹ Back</button><h1>Trends</h1><span></span></div>`;
+  if (!data.sessions.length) {
+    return h + '<p class="lead">No sessions yet — trends appear after your first workout.</p></div>';
+  }
+
+  const span = T.dateSpan(data);
+  const heroChart = { color: '#fff', h: 120, gridColor: 'rgba(255,255,255,.3)', textColor: 'rgba(255,255,255,.75)' };
+
+  const cal = T.calendarMonths(data, todayIso());
+  h += `<div class="card"><h2>Training days</h2><div class="months">${cal.map(mo =>
+    `<div class="month"><div class="mn">${mo.label}</div><div class="days">${'<span></span>'.repeat(mo.lead)}${mo.days.map(d =>
+      `<span class="d ${d.on ? 'on' : ''}">${d.n}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+
+  const assist = T.assistSeries(data);
+  if (assist.length) {
+    const a0 = assist[0], a1 = assist.at(-1);
+    h += `<div class="hero pull"><div class="k">Road to a pull-up</div>
+      <div class="big">${a1.y}<small> lbs assist</small></div>
+      <div class="delta">${a0.y > a1.y ? `▼ ${a0.y - a1.y} lbs since ${T.shortDate(a0.date)} · ` : ''}goal 0</div>
+      ${T.lineChart(assist, span, { ...heroChart, invert: true, min: 0 })}</div>`;
+  }
+
+  const pushVol = T.pushVolumeSeries(data);
+  if (pushVol.length) {
+    const marks = T.variantMarks(pushVol);
+    const p1 = pushVol.at(-1);
+    const variant = L.LABELS[p1.variant] ?? p1.variant ?? '';
+    let delta;
+    if (marks.length) {
+      const m = marks.at(-1);
+      const since = pushVol.filter(p => T.day(p.date) >= T.day(m.date)).map(p => p.y);
+      delta = `${since.join(' → ')} since ${m.label} (${T.shortDate(m.date)})`;
+    } else {
+      const d = p1.y - pushVol[0].y;
+      delta = `${d < 0 ? '▼' : '▲'} ${Math.abs(d)} reps since ${T.shortDate(pushVol[0].date)}`;
+    }
+    h += `<div class="hero push"><div class="k">Push-up volume</div>
+      <div class="big">${p1.y}<small> reps${variant ? ' · ' + esc(variant) : ''}</small></div>
+      <div class="delta">${esc(delta)}</div>
+      ${T.lineChart(pushVol, span, { ...heroChart, marks })}</div>`;
+  }
+
+  const cards = [];
+  const hang = T.hangSeries(data);
+  if (hang.length) {
+    cards.push({ id: 'hang', k: 'Dead hang', v: `${hang.at(-1).y}<small> s best</small>`,
+      pts: hang, color: '#a78bfa', opts: {} });
+  }
+  const row = T.rowLevelSeries(data);
+  const ladder = L.exerciseById(data, 'inverted-row')?.barHeights ?? [];
+  if (row.length && ladder.length) {
+    const cur = row.at(-1).y;
+    cards.push({ id: 'row', k: 'Inverted row',
+      v: `Lvl ${cur}<small> / ${ladder.length} (${esc(L.LABELS[ladder[cur - 1]] ?? ladder[cur - 1])})</small>`,
+      pts: row, color: '#34d399', opts: { min: 1, max: ladder.length },
+      note: ladder.map(x => L.LABELS[x] ?? x).join(' → ') + ' (harder)' });
+  }
+  if (cards.length) {
+    h += `<div class="grid2">${cards.map(c => {
+      const open = ui.trendsOpen === c.id;
+      return `<button class="stat ${open ? 'open' : ''}" data-act="trend-open" data-id="${c.id}">
+        <div class="k">${c.k}</div><div class="v">${c.v}</div>
+        ${open ? T.lineChart(c.pts, span, { color: c.color, ...c.opts }) : T.sparkline(c.pts, span, c.color)}
+        ${open && c.note ? `<div class="note">${esc(c.note)}</div>` : ''}</button>`;
+    }).join('')}</div>`;
+  }
+  return h + '</div>';
 }
 
 function renderLogging() {
@@ -194,6 +268,7 @@ function renderSheet() {
 function render() {
   let view;
   if (location.hash === '#rules' && data) view = renderRules();
+  else if (location.hash === '#trends' && data) view = renderTrends();
   else if (!data) view = renderSetup();
   else if (active) view = renderLogging();
   else view = renderHome();
@@ -318,6 +393,7 @@ const actions = {
     store.saveActive(active);
   },
   'sheet-close'() { ui.sheet = null; },
+  'trend-open'(el) { ui.trendsOpen = ui.trendsOpen === el.dataset.id ? null : el.dataset.id; },
   finish() {
     if (!ui.confirmFinish) { ui.confirmFinish = true; return; }
     const session = L.finishSession(active);
