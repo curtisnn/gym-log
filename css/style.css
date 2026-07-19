@@ -1,0 +1,124 @@
+:root {
+  --bg: #0e1116; --card: #1a1f27; --card2: #232a35; --line: #2c3442;
+  --text: #e8eaed; --dim: #8b95a5; --accent: #4ade80; --accent-dim: #14351f;
+  --blue: #7ab8ff; --danger: #f87171;
+  -webkit-tap-highlight-color: transparent;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); }
+body {
+  color: var(--text);
+  font: 16px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif;
+  padding-bottom: 180px;
+}
+#app { max-width: 440px; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 12px 0; }
+button {
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+a { color: var(--blue); text-decoration: none; }
+h1 { font-size: 22px; font-weight: 800; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.topbar .date { color: var(--dim); font-size: 14px; margin-left: 8px; }
+.topbar > div { display: flex; align-items: baseline; }
+.topbar button { color: var(--blue); font-size: 15px; padding: 4px 8px 4px 0; }
+.ruleslink { font-size: 15px; padding: 4px 0; }
+
+/* ---------- simple pages (setup / home / rules) ---------- */
+.page { padding-top: 20px; }
+.page h1 { margin-bottom: 12px; }
+.page .lead { color: var(--dim); margin-bottom: 20px; }
+.page .foot { margin-top: 24px; text-align: center; }
+.page textarea {
+  width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px; font: 13px/1.5 ui-monospace, monospace; margin-bottom: 12px;
+}
+.page .error { color: var(--danger); margin-bottom: 12px; }
+.page .saved { color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+.primary {
+  display: block; width: 100%; padding: 16px; border-radius: 16px;
+  background: var(--accent); color: #08130c; font-size: 17px; font-weight: 800;
+}
+.primary:disabled { background: var(--card2); color: var(--dim); }
+.primary.confirm { background: #fbbf24; }
+.primary:active:not(:disabled) { filter: brightness(.9); }
+.ghost {
+  display: block; width: 100%; padding: 13px; border-radius: 16px; margin-bottom: 10px;
+  background: var(--card); color: var(--blue); font-size: 15px; font-weight: 600;
+}
+.rules { list-style: none; }
+.rules li { background: var(--card); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+
+/* ---------- the paper grid ---------- */
+.grid { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.grid th { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); font-weight: 600; padding: 4px 2px; text-align: center; }
+.grid th:first-child { text-align: left; }
+.grid td { border-top: 1px solid var(--line); padding: 3px 2px; }
+.sechead td { border-top: 0; padding: 14px 2px 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+.exname { font-size: 14px; font-weight: 600; padding-right: 4px; }
+.exname small { display: block; color: var(--dim); font-weight: 400; font-size: 11px; }
+.exname button { text-align: left; width: 100%; min-height: 44px; padding: 0; }
+.exname .nm { font-size: 14px; font-weight: 600; }
+.exname .hicon { font-size: 8px; color: var(--blue); letter-spacing: -1px; margin-left: 5px; vertical-align: 2px; }
+.cell { width: 21%; }
+.cell button, .setg button { width: 100%; min-height: 44px; border-radius: 10px; background: var(--card); font-size: 16px; font-weight: 700; color: var(--text); padding: 4px 2px; }
+.cell button small { font-size: 11px; font-weight: 500; color: var(--dim); }
+.cell button.done { background: var(--accent-dim); color: var(--accent); }
+.cell button.sel, .setg button.sel { outline: 2px solid var(--blue); }
+.setg { width: 17%; }
+.setg button { font-size: 11px; font-weight: 600; color: var(--blue); background: none; }
+.actions { margin: 20px 0 10px; }
+
+/* ---------- fixed editor bar ---------- */
+.editor {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 40;
+  width: min(430px, calc(100vw - 16px));
+  background: var(--card2); border: 1px solid var(--line); border-radius: 18px;
+  padding: 10px 12px; box-shadow: 0 12px 30px rgba(0,0,0,.55);
+}
+.editor .who { font-size: 12px; color: var(--dim); text-align: center; margin-bottom: 6px; }
+.editor .who b { color: var(--text); }
+.editor .controls { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.editor .val { font-size: 26px; font-weight: 800; min-width: 74px; text-align: center; }
+.editor .val small { font-size: 13px; font-weight: 500; color: var(--dim); }
+.editor .axisrow { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+.editor .axisrow button { background: #313b4b; border-radius: 999px; padding: 7px 13px; font-size: 13px; }
+.editor .axisrow .lbl { color: var(--blue); font-size: 13px; min-width: 90px; text-align: center; }
+.stepbtn {
+  width: 46px; height: 46px; border-radius: 14px; background: var(--card); flex: none;
+  font-size: 24px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+}
+.stepbtn:active { background: #2f3947; }
+.donebtn {
+  width: 46px; height: 46px; border-radius: 14px; flex: none; font-size: 20px;
+  background: var(--card); color: var(--dim);
+  display: flex; align-items: center; justify-content: center;
+}
+.donebtn.on { background: var(--accent-dim); color: var(--accent); }
+
+/* ---------- bottom sheets (history / add exercise) ---------- */
+.overlay { position: fixed; inset: 0; background: rgba(4,6,10,.6); z-index: 60; }
+.sheet {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 61;
+  width: min(440px, 100vw); background: var(--card2); border-radius: 20px 20px 0 0;
+  border: 1px solid var(--line); border-bottom: 0;
+  padding: 14px 16px calc(26px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px rgba(0,0,0,.6);
+}
+.sheet .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sheet .hd b { font-size: 17px; }
+.sheet .hd button { color: var(--dim); font-size: 20px; padding: 8px 10px; }
+.sheet table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.sheet td { padding: 8px 4px; border-top: 1px solid var(--line); font-size: 15px; }
+.sheet td.d { color: var(--dim); width: 26%; }
+.sheet td.s { color: var(--blue); font-size: 13px; width: 30%; }
+.sheet td.v { text-align: right; font-weight: 700; }
+.sheet .none { color: var(--dim); font-size: 13px; padding: 8px 4px; }
+.addrow {
+  display: block; width: 100%; text-align: left; padding: 13px 8px;
+  border-top: 1px solid var(--line); font-size: 16px; font-weight: 600;
+}
+.addrow:active { background: var(--card); }
