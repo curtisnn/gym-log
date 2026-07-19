@@ -1,5 +1,6 @@
 import * as L from './logic.js';
 import * as store from './store.js';
+import * as sync from './sync.js';
 
 let data = store.loadData();
 let active = store.loadActive();
@@ -10,7 +11,9 @@ const ui = {
   sheet: null,        // { kind: 'history', ex } | { kind: 'add' } | null
   confirmFinish: false,
   justFinished: null, // set count of the session just saved, shown once on home
-  error: null,        // setup import error
+  error: null,        // setup restore error
+  busy: false,        // a network call is in flight (setup restore)
+  sync: null,         // { state: 'working'|'error'|'auth'|'diverged', msg?, remote? }
 };
 
 const $app = document.getElementById('app');
@@ -34,12 +37,39 @@ function fmtVal(ex, set) {
 function renderSetup() {
   return `<div class="page">
     <h1>Gym Log</h1>
-    <p class="lead">No data on this device yet. Paste the contents of <code>data.json</code>
-    from the private data repo to get started.</p>
+    <p class="lead">No data on this device yet. Paste the GitHub token (in 1Password)
+    to pull your history from the private data repo.</p>
     ${ui.error ? `<p class="error">${esc(ui.error)}</p>` : ''}
-    <textarea id="import-text" rows="10" placeholder='{"exercises": …}'></textarea>
-    <button class="primary" data-act="import">Import</button>
+    <input type="password" id="token-input" placeholder="github_pat_…" autocomplete="off">
+    <button class="primary" data-act="restore" ${ui.busy ? 'disabled' : ''}>
+      ${ui.busy ? 'Pulling…' : 'Restore from GitHub'}</button>
   </div>`;
+}
+
+function renderSyncStatus() {
+  const s = ui.sync;
+  if (s?.state === 'working') return `<p class="syncline dim">Backing up…</p>`;
+  if (s?.state === 'auth') {
+    return `<div class="syncbox">
+      <p class="error">GitHub rejected the token. Paste a fresh one (1Password) — your
+      sessions are safe on the phone meanwhile.</p>
+      <input type="password" id="token-input" placeholder="github_pat_…" autocomplete="off">
+      <button class="ghost" data-act="save-token">Save token &amp; retry</button>
+    </div>`;
+  }
+  if (s?.state === 'diverged') {
+    return `<div class="syncbox">
+      <p class="error">The GitHub copy has changed since this phone last backed up.</p>
+      <button class="ghost" data-act="overwrite">Overwrite GitHub with phone data</button>
+      <button class="ghost" data-act="pull">Pull GitHub copy (replaces phone data)</button>
+    </div>`;
+  }
+  const err = s?.state === 'error' ? `<p class="error">${esc(s.msg)}</p>` : '';
+  if (store.loadSyncState().dirty) {
+    return `${err}<p class="syncline"><span class="warn">Not backed up</span>
+      <button data-act="retry">Retry</button></p>`;
+  }
+  return `<p class="syncline dim">Backed up ✓</p>`;
 }
 
 function renderHome() {
@@ -50,6 +80,7 @@ function renderHome() {
     <p class="lead">${last
       ? `${data.sessions.length} sessions logged · last ${L.formatDate(last.date)}`
       : 'No sessions yet'}</p>
+    ${renderSyncStatus()}
     <button class="primary" data-act="start">Start session</button>
     <p class="foot"><a href="#rules">Rules</a></p>
   </div>`;
@@ -178,15 +209,75 @@ function selectedSet() {
   return { entry, ex: L.exerciseById(data, entry.exercise), set: entry.sets[ui.sel.si] };
 }
 
+// Auto-backup on session finish, and the manual retry. Foreground only — no
+// background sync exists on iOS, so this runs while the app is open.
+async function doBackup() {
+  const token = store.loadToken();
+  if (!token) { ui.sync = { state: 'auth' }; render(); return; }
+  ui.sync = { state: 'working' };
+  render();
+  try {
+    const message = `backup: session ${data.sessions.at(-1)?.date ?? todayIso()}`;
+    const r = await sync.backup(fetch, token, data, store.loadSyncState().sha, message);
+    if (r.status === 'ok') {
+      store.saveSyncState({ sha: r.sha, dirty: false });
+      ui.sync = null;
+    } else if (r.status === 'auth') {
+      ui.sync = { state: 'auth' };
+    } else if (r.status === 'diverged') {
+      ui.sync = { state: 'diverged', remote: r.remote };
+    } else {
+      ui.sync = { state: 'error', msg: 'GitHub reported a write conflict — retry.' };
+    }
+  } catch {
+    ui.sync = { state: 'error', msg: 'Backup failed — no connection? Data is safe on the phone.' };
+  }
+  render();
+}
+
 const actions = {
-  import() {
+  async restore() {
+    const token = document.getElementById('token-input').value.trim();
+    if (!token) { ui.error = 'Paste the token first.'; return; }
+    ui.busy = true;
+    ui.error = null;
+    render();
     try {
-      data = L.parseData(document.getElementById('import-text').value);
-      ui.error = null;
+      const remote = await sync.getRemote(fetch, token);
+      if (remote.status === 'auth') throw new Error('GitHub rejected the token (401).');
+      if (remote.status === 'missing') throw new Error('data.json not found in the data repo.');
+      data = L.parseData(JSON.stringify(remote.data));
+      store.saveToken(token);
       store.saveData(data);
+      store.saveSyncState({ sha: remote.sha, dirty: false });
     } catch (err) {
       ui.error = err.message;
     }
+    ui.busy = false;
+    render();
+  },
+  'save-token'() {
+    const token = document.getElementById('token-input').value.trim();
+    if (!token) return;
+    store.saveToken(token);
+    ui.sync = null;
+    doBackup();
+  },
+  retry() { doBackup(); },
+  overwrite() {
+    const { remote } = ui.sync;
+    ui.sync = null;
+    const token = store.loadToken();
+    // Adopt the remote sha, then run the normal backup PUT against it.
+    store.saveSyncState({ sha: remote.sha, dirty: true });
+    if (token) doBackup();
+  },
+  pull() {
+    const { remote } = ui.sync;
+    data = remote.data;
+    store.saveData(data);
+    store.saveSyncState({ sha: remote.sha, dirty: false });
+    ui.sync = null;
   },
   start() {
     active = L.prefillSession(data, todayIso());
@@ -235,9 +326,11 @@ const actions = {
     ui.justFinished = session.entries.reduce((n, e) => n + e.sets.length, 0);
     data.sessions.push(session);
     store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
     active = null;
     ui.sel = null;
     store.clearActive();
+    doBackup();
   },
 };
 
@@ -251,6 +344,10 @@ document.addEventListener('click', ev => {
 });
 
 window.addEventListener('hashchange', render);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 
 store.requestPersist();
 render();

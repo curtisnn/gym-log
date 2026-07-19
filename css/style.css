@@ -37,6 +37,17 @@ h1 { font-size: 22px; font-weight: 800; }
 }
 .page .error { color: var(--danger); margin-bottom: 12px; }
 .page .saved { color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+.page input[type="password"] {
+  width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; font: 14px/1.4 ui-monospace, monospace; margin-bottom: 12px;
+}
+.syncline { margin-bottom: 20px; font-size: 14px; }
+.syncline.dim { color: var(--dim); }
+.syncline .warn { color: #fbbf24; font-weight: 600; }
+.syncline button { color: var(--blue); font-size: 14px; font-weight: 600; padding: 4px 8px; }
+.syncbox { margin-bottom: 20px; }
+.syncbox .error { font-size: 14px; }
+.syncbox .ghost { margin-bottom: 8px; }
 .primary {
   display: block; width: 100%; padding: 16px; border-radius: 16px;
   background: var(--accent); color: #08130c; font-size: 17px; font-weight: 800;
