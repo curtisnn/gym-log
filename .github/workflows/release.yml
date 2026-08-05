@@ -1,0 +1,40 @@
+# Every push to main becomes a release: the first ever is v0.1.0, after that the
+# patch number increments. Release notes are auto-generated from the commits since
+# the previous release — that's the changelog.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: ver
+        run: |
+          last=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          if [ -z "$last" ]; then
+            next=v0.1.0
+          else
+            IFS=. read -r major minor patch <<< "${last#v}"
+            next="v$major.$minor.$((patch + 1))"
+          fi
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.next }}" \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.ver.outputs.next }}" \
+            --generate-notes
