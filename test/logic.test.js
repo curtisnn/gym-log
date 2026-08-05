@@ -239,3 +239,33 @@ test('sessionOn: finds the saved session for a date, or nothing', () => {
   assert.equal(L.sessionOn(data, '2026-07-09').entries.length, 4);
   assert.equal(L.sessionOn(data, '2026-07-10'), null);
 });
+
+test('stepSetting: walks the full ladders — active hang, paused scap, past diamond', () => {
+  const hang = { id: 'dead-hang', metric: 'seconds', variants: ['relaxed', 'active'] };
+  const set = { seconds: 30, variant: 'relaxed' };
+  L.stepSetting(hang, set, 1);
+  assert.equal(set.variant, 'active');
+  L.stepSetting(hang, set, 1);
+  assert.equal(set.variant, 'active', 'top of the ladder holds');
+
+  const pu = { id: 'push-up', metric: 'reps',
+    variants: ['knee', 'bar-high', 'bar-low', 'ground', 'diamond', 'decline', 'archer', 'pseudo-planche', 'one-arm'] };
+  const ps = { reps: 10, variant: 'diamond' };
+  L.stepSetting(pu, ps, 1);
+  assert.equal(ps.variant, 'decline', 'the old ladder ended at diamond; the track goes on');
+  L.stepSetting(pu, ps, -1);
+  L.stepSetting(pu, ps, -1);
+  assert.equal(ps.variant, 'ground', 'two taps of easier when gassed');
+});
+
+test('stepSetting: every split-stance squat variant is per-leg', () => {
+  const sq = { id: 'squat', metric: 'reps', variants: ['squat', 'split-squat', 'bulgarian', 'bulgarian-loaded'] };
+  const set = { reps: 12, variant: 'split-squat', perLeg: true };
+  L.stepSetting(sq, set, 1);
+  assert.equal(set.variant, 'bulgarian');
+  assert.ok(set.perLeg, 'bulgarian is still one leg at a time');
+  L.stepSetting(sq, set, -1);
+  L.stepSetting(sq, set, -1);
+  assert.equal(set.variant, 'squat');
+  assert.ok(!set.perLeg);
+});

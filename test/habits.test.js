@@ -144,3 +144,64 @@ test('voteChain: 90 cells — voted, missed, today, future', () => {
   assert.equal(chain[3].state, 'future');
   assert.equal(chain.at(-1).iso, '2026-11-01');
 });
+
+// --- catalog ladders mirror the Rules tracks (issue #18) ---
+
+test('migrate: extends catalog ladders to the full tracks, preserving existing ids', () => {
+  const data = fixture();
+  data.exercises = [
+    { id: 'dead-hang', name: 'Dead hang', metric: 'seconds' },
+    { id: 'scapular-pulls', name: 'Scapular pulls', metric: 'reps' },
+    { id: 'push-up', name: 'Push-up', metric: 'reps', variants: ['bar-low', 'ground', 'diamond'] },
+    { id: 'squat', name: 'Bodyweight squat', metric: 'reps', variants: ['squat', 'split-squat'] },
+  ];
+  H.migrate(data);
+  const ex = id => data.exercises.find(e => e.id === id);
+  assert.deepEqual(ex('dead-hang').variants, ['relaxed', 'active']);
+  assert.deepEqual(ex('scapular-pulls').variants, ['regular', 'paused-top']);
+  assert.deepEqual(ex('push-up').variants,
+    ['knee', 'bar-high', 'bar-low', 'ground', 'diamond', 'decline', 'archer', 'pseudo-planche', 'one-arm'],
+    'old ids keep their place inside the full track');
+  assert.deepEqual(ex('squat').variants, ['squat', 'split-squat', 'bulgarian', 'bulgarian-loaded']);
+  assert.ok(ex('negative-pull-up'), 'the feeds-into boundary becomes a new addable exercise');
+  const n = data.exercises.length;
+  H.migrate(data);
+  assert.equal(data.exercises.length, n, 'idempotent');
+});
+
+test('migrate: backfills the base variant onto historical laddered sets', () => {
+  const data = fixture();
+  data.exercises.push({ id: 'dead-hang', name: 'Dead hang', metric: 'seconds' });
+  data.sessions.push({ date: '2026-07-30', warmup: { stretches: true, pushups: 8 }, entries: [
+    { exercise: 'dead-hang', sets: [{ seconds: 40 }, { seconds: 35 }] },
+  ] });
+  H.migrate(data);
+  assert.equal(data.sessions.at(-1).entries[0].sets[0].variant, 'relaxed',
+    'history recorded before the ladder existed sits at the base level');
+});
+
+test('after migrate, dead hang pre-fills at its recorded level and can step to active', async () => {
+  const L = await import('../js/logic.js');
+  const data = fixture();
+  data.exercises.push({ id: 'dead-hang', name: 'Dead hang', metric: 'seconds' });
+  data.template.sections.push({ name: 'Pull-up work', restSeconds: 60, items: [
+    { exercise: 'dead-hang', targetSets: 3, targetRange: [20, 30] },
+  ] });
+  data.sessions.push({ date: '2026-08-03', warmup: { stretches: true, pushups: 8 }, entries: [
+    { exercise: 'dead-hang', sets: [{ seconds: 40 }, { seconds: 38 }] },
+  ] });
+  H.migrate(data);
+  const entry = L.prefillEntry(data, 'dead-hang');
+  assert.equal(entry.sets[0].variant, 'relaxed', 'history backfill carries into pre-fill');
+  const ex = data.exercises.find(e => e.id === 'dead-hang');
+  L.stepSetting(ex, entry.sets[0], 1);
+  L.carryForward(entry, 0);
+  assert.ok(entry.sets.every(s => s.variant === 'active'), 'the advance finally has a place to live');
+});
+
+test('migrate: stamps the schema so boot knows when an upgrade is due', () => {
+  const data = fixture();
+  assert.notEqual(data.schema, H.SCHEMA);
+  H.migrate(data);
+  assert.equal(data.schema, H.SCHEMA);
+});

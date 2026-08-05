@@ -105,9 +105,43 @@ export function voteChain(data, todayIso) {
   });
 }
 
+// Full variant ladders, mirroring the Rules tracks level-for-level (issue #18).
+// Existing ids keep their place inside the extended ladder; exercises that had
+// no ladder get one, and their history is backfilled to the base level.
+const LADDERS = {
+  'dead-hang': ['relaxed', 'active'],
+  'scapular-pulls': ['regular', 'paused-top'],
+  'push-up': ['knee', 'bar-high', 'bar-low', 'ground', 'diamond', 'decline', 'archer', 'pseudo-planche', 'one-arm'],
+  'squat': ['squat', 'split-squat', 'bulgarian', 'bulgarian-loaded'],
+};
+
+// Where a track feeds into another, that boundary is a new exercise (glossary:
+// Track) — added to the catalog so graduation is a mid-session add away.
+const TRACK_EXERCISES = [
+  { id: 'negative-pull-up', name: 'Negative pull-up', metric: 'reps' },
+];
+
+// Bump when migrate() learns a new step; boot re-runs it on any mismatch.
+export const SCHEMA = 3;
+
 // Upgrade a loaded data file in place to the current shape. Idempotent — runs
 // on every boot, restore, and pull.
 export function migrate(data) {
+  for (const [id, ladder] of Object.entries(LADDERS)) {
+    const ex = data.exercises.find(e => e.id === id);
+    if (!ex || ex.variants?.length === ladder.length) continue;
+    const hadLadder = !!ex.variants;
+    ex.variants = [...ladder];
+    if (!hadLadder) {
+      for (const s of data.sessions) {
+        const entry = s.entries.find(e => e.exercise === id);
+        if (entry) for (const set of entry.sets) set.variant ??= ladder[0];
+      }
+    }
+  }
+  for (const t of TRACK_EXERCISES) {
+    if (!data.exercises.some(e => e.id === t.id)) data.exercises.push({ ...t });
+  }
   if (!data.pushupDays) {
     data.pushupDays = LEGACY_DAYS.map(d => ({ ...d, sets: [...d.sets], legacy: true }));
   }
@@ -116,5 +150,6 @@ export function migrate(data) {
     // arc fixed at 90 days from 2026-08-04. A vote, not a stopwatch.
     data.vote = { thing: 'eFinalDate', start: '2026-08-04', days: [] };
   }
+  data.schema = SCHEMA;
   return data;
 }

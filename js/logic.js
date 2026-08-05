@@ -3,10 +3,18 @@
 
 export const SETTING_KEYS = ['assistLbs', 'barHeight', 'variant'];
 
+// Split-stance squat variants count reps per leg.
+const PER_LEG_VARIANTS = new Set(['split-squat', 'bulgarian', 'bulgarian-loaded']);
+
 export const LABELS = {
-  'bar-low': 'bar (low)', 'ground': 'ground', 'diamond': 'diamond',
+  'knee': 'knee', 'bar-high': 'bar (high)', 'bar-low': 'bar (low)', 'ground': 'ground',
+  'diamond': 'diamond', 'decline': 'decline', 'archer': 'archer',
+  'pseudo-planche': 'pseudo planche', 'one-arm': 'one-arm',
   'squat': 'squat', 'split-squat': 'split squat',
+  'bulgarian': 'bulgarian split', 'bulgarian-loaded': 'loaded bulgarian',
   'knees-bent': 'knees bent', 'straight': 'straight',
+  'relaxed': 'relaxed', 'active': 'active',
+  'regular': 'regular', 'paused-top': 'paused top',
   'at-9': 'bar at 9', 'above-9': 'bar above 9', 'above-8': 'bar above 8', 'below-8': 'bar below 8',
 };
 
@@ -105,7 +113,7 @@ export function stepSetting(ex, set, dir) {
     const ladder = ex.variants;
     const i = Math.min(ladder.length - 1, Math.max(0, ladder.indexOf(set.variant) + dir));
     set.variant = ladder[i];
-    if (set.variant === 'split-squat') set.perLeg = true;
+    if (PER_LEG_VARIANTS.has(set.variant)) set.perLeg = true;
     else delete set.perLeg;
   }
 }

@@ -6,7 +6,7 @@ import * as store from './store.js';
 import * as sync from './sync.js';
 
 let data = store.loadData();
-if (data && !(data.pushupDays && data.vote)) {
+if (data && data.schema !== H.SCHEMA) {
   H.migrate(data);
   store.saveData(data);
   store.saveSyncState({ ...store.loadSyncState(), dirty: true });
