@@ -1,10 +1,16 @@
 import * as L from './logic.js';
 import * as T from './trends.js';
 import * as R from './rules.js';
+import * as H from './habits.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
 
 let data = store.loadData();
+if (data && !data.pushupDays) {
+  H.migrate(data);
+  store.saveData(data);
+  store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+}
 let active = store.loadActive();
 
 // Transient UI state — never persisted.
@@ -21,6 +27,7 @@ const ui = {
   calBack: 0,         // how many 5-week windows the History calendar is paged back
   dayOpen: null,      // iso date whose read-only detail sheet is open
   journey: false,     // all-time journey view expanded
+  pushN: 10,          // count staged in the Habits quick-add
 };
 
 const $app = document.getElementById('app');
@@ -89,7 +96,37 @@ function renderHome() {
       : 'No sessions yet'}</p>
     ${renderSyncStatus()}
     <button class="primary" data-act="start">Start session</button>
-    <p class="foot"><a href="#trends">History &amp; Trends</a> · <a href="#rules">Rules</a></p>
+    <p class="foot"><a href="#trends">History &amp; Trends</a> · <a href="#habits">Habits</a> · <a href="#rules">Rules</a></p>
+  </div>`;
+}
+
+// The Habits page: two hardcoded daily practices, not a generic engine.
+// Today: the pushup day-log (issue #16). The 90/90/1 vote joins with #17.
+function renderHabits() {
+  const today = todayIso();
+  const day = H.pushupDay(data, today);
+  const recent = H.recentPushupDays(data, 14).filter(d => d.date !== today);
+  return `<div class="page habits">
+    <div class="topbar"><button data-act="back">‹ Back</button><h1>Habits</h1><span></span></div>
+    <div class="card">
+      <h2>Pushups today</h2>
+      <div class="putotal">${day ? day.total : 0}<small> total</small></div>
+      ${day ? `<p class="pusets">${day.manual.join(' · ')}${day.manual.length && day.gym.length ? ' · ' : ''}${day.gym.length ? `<span class="dim">${day.gym.join(' · ')} (gym)</span>` : ''}</p>` : ''}
+      <div class="puadd">
+        <button class="stepbtn" data-act="pu-adj" data-d="-1">−</button>
+        <div class="val">${ui.pushN}</div>
+        <button class="stepbtn" data-act="pu-adj" data-d="1">+</button>
+        <button class="primary slim" data-act="pu-add">Add ${ui.pushN}</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Days</h2>
+      ${recent.length ? `<table class="pudays">${recent.map(d =>
+        `<tr><td class="d">${L.formatDate(d.date)}</td>
+         <td class="s">${d.manual.join(' · ')}${d.manual.length && d.gym.length ? ' · ' : ''}${d.gym.length ? `<span class="dim">${d.gym.join(' · ')}</span>` : ''}</td>
+         <td class="t">${d.total}</td></tr>`).join('')}</table>`
+        : '<p class="none">no pushup days yet</p>'}
+    </div>
   </div>`;
 }
 
@@ -119,7 +156,7 @@ function renderTrends() {
     <div class="cal5">
       ${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span class="dow">${d}</span>`).join('')}
       ${cal.weeks.flat().map(d => d.mark
-        ? `<button class="cd on ${d.today ? 'today' : ''}" data-act="day-open" data-iso="${d.iso}">${d.n}</button>`
+        ? `<button class="cd ${d.mark === 'session' ? 'on' : 'pu'} ${d.today ? 'today' : ''}" data-act="day-open" data-iso="${d.iso}">${d.n}</button>`
         : `<span class="cd ${d.today ? 'today' : ''} ${d.future ? 'future' : ''}">${d.n}</span>`).join('')}
     </div>
     <button class="journeylink" data-act="journey">${ui.journey ? 'hide the journey' : 'the whole journey ↓'}</button>
@@ -184,14 +221,21 @@ function renderTrends() {
   return h + '</div>' + renderDaySheet();
 }
 
-// Read-only paper grid for a saved day, opened from the History calendar.
+// Read-only view of a saved day, opened from the History calendar: the session
+// paper grid (if there was one) plus the day's pushup roll-up.
 function renderDaySheet() {
   if (!ui.dayOpen) return '';
   const s = L.sessionOn(data, ui.dayOpen);
-  if (!s) return '';
-  let inner = `<div class="hd"><b>${L.formatDate(s.date)}</b>
-    <button data-act="day-close" aria-label="close">✕</button></div>
-    <table class="grid ro">
+  const pu = H.pushupDay(data, ui.dayOpen);
+  if (!s && !pu) return '';
+  let inner = `<div class="hd"><b>${L.formatDate(ui.dayOpen)}</b>
+    <button data-act="day-close" aria-label="close">✕</button></div>`;
+  if (pu) {
+    inner += `<p class="pusum"><b>${pu.total}</b> pushups
+      <small>${[...pu.manual, ...pu.gym].join(' · ')}${pu.gym.length ? ' (incl. gym)' : ''}</small></p>`;
+  }
+  if (!s) return `<div class="overlay" data-act="day-close"></div><div class="sheet">${inner}</div>`;
+  inner += `<table class="grid ro">
     <tr class="sechead"><td colspan="5">Warm-up</td></tr>
     <tr><td class="exname"><span class="nm">Warm-up</span></td>
       <td class="cell"><span class="rocell">${s.warmup?.stretches ? '✓' : '—'}<br><small>stretch</small></span></td>
@@ -316,6 +360,7 @@ function renderSheet() {
 function render() {
   let view;
   if (location.hash === '#rules' && data) view = renderRules();
+  else if (location.hash === '#habits' && data) view = renderHabits();
   else if (location.hash === '#trends' && data) view = renderTrends();
   else if (!data) view = renderSetup();
   else if (active) view = renderLogging();
@@ -369,7 +414,7 @@ const actions = {
       const remote = await sync.getRemote(fetch, token);
       if (remote.status === 'auth') throw new Error('GitHub rejected the token (401).');
       if (remote.status === 'missing') throw new Error('data.json not found in the data repo.');
-      data = L.parseData(JSON.stringify(remote.data));
+      data = H.migrate(L.parseData(JSON.stringify(remote.data)));
       store.saveToken(token);
       store.saveData(data);
       store.saveSyncState({ sha: remote.sha, dirty: false });
@@ -397,7 +442,7 @@ const actions = {
   },
   pull() {
     const { remote } = ui.sync;
-    data = remote.data;
+    data = H.migrate(remote.data);
     store.saveData(data);
     store.saveSyncState({ sha: remote.sha, dirty: false });
     ui.sync = null;
@@ -412,6 +457,13 @@ const actions = {
   'cal-fwd'() { ui.calBack = Math.max(0, ui.calBack - 1); },
   journey() { ui.journey = !ui.journey; },
   'day-open'(el) { ui.dayOpen = el.dataset.iso; },
+  'pu-adj'(el) { ui.pushN = Math.max(1, ui.pushN + +el.dataset.d); },
+  'pu-add'() {
+    H.addPushups(data, todayIso(), ui.pushN);
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    doBackup();
+  },
   'day-close'() { ui.dayOpen = null; },
   'sel'(el) {
     const sel = { ei: +el.dataset.e, si: +el.dataset.s };

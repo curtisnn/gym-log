@@ -1,13 +1,14 @@
 // App-shell cache so the app opens with no reception at the gym.
 // Bump CACHE on every deploy — iOS re-checks this file on launch and a byte-diff
 // installs the new worker, which purges the old cache.
-const CACHE = 'gymlog-v5';
+const CACHE = 'gymlog-v6';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/app.js',
   './js/logic.js',
+  './js/habits.js',
   './js/store.js',
   './js/sync.js',
   './js/trends.js',

@@ -131,3 +131,14 @@ test('calendarWindow: labels the visible span', () => {
   const w = T.calendarWindow(fixture(), '2026-08-04', 0);
   assert.equal(w.label, 'Jul 5 – Aug 8');
 });
+
+test('calendarWindow: pushup-only days get their own mark; a session wins the day', () => {
+  const data = fixture();
+  data.pushupDays = [
+    { date: '2026-07-20', sets: [10, 12] },     // no session that day
+    { date: '2026-07-13', sets: [14], legacy: true }, // session day — stays a session mark
+  ];
+  const days = T.calendarWindow(data, '2026-08-04', 0).weeks.flat();
+  assert.equal(days.find(d => d.iso === '2026-07-20').mark, 'pushups');
+  assert.equal(days.find(d => d.iso === '2026-07-13').mark, 'session');
+});

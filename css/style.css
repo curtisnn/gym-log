@@ -161,6 +161,7 @@ h1 { font-size: 22px; font-weight: 800; }
 .cal5 .dow { text-align: center; font-size: 10px; color: var(--dim); padding: 2px 0; }
 .cal5 .cd { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 14px; color: #4a5261; background: none; }
 .cal5 button.cd.on { background: var(--accent); color: #08130c; font-weight: 700; }
+.cal5 button.cd.pu { border: 2px solid var(--accent); color: var(--accent); font-weight: 700; }
 .cal5 .cd.today { outline: 2px solid var(--blue); }
 .cal5 .cd.future { opacity: .35; }
 .journeylink { display: block; width: 100%; margin-top: 10px; padding: 8px; background: none; color: var(--blue); font-size: 13px; }
@@ -184,3 +185,22 @@ h1 { font-size: 22px; font-weight: 800; }
 .stat .v small { font-size: 12px; font-weight: 500; color: var(--dim); }
 .stat.open { grid-column: 1 / -1; }
 .stat .note { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+/* ---------- habits page ---------- */
+.habits .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.habits .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+.putotal { font-size: 40px; font-weight: 800; }
+.putotal small { font-size: 14px; font-weight: 600; color: var(--dim); }
+.pusets { margin: 4px 0 10px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pusets .dim, .pudays .dim { color: var(--dim); }
+.puadd { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.puadd .stepbtn { width: 52px; height: 44px; border-radius: 12px; background: var(--card2); color: var(--text); font-size: 20px; }
+.puadd .val { min-width: 40px; text-align: center; font-size: 20px; font-weight: 700; }
+.puadd .primary.slim { flex: 1; padding: 12px; margin: 0; }
+.pudays { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pudays td { padding: 8px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.pudays td.d { color: var(--dim); width: 22%; }
+.pudays td.t { text-align: right; font-weight: 700; width: 15%; }
+.pusum { font-size: 16px; margin-bottom: 10px; }
+.pusum b { font-size: 22px; }
+.pusum small { color: var(--dim); display: block; margin-top: 2px; }

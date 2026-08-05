@@ -85,6 +85,7 @@ export function calendarWindow(data, todayIso, back = 0) {
   const weekStart = t - new Date(todayIso + 'T12:00:00Z').getUTCDay();
   const start = weekStart - 28 - back * 35;
   const on = new Set(data.sessions.map(s => s.date));
+  const pushups = new Set((data.pushupDays ?? []).map(d => d.date));
   const weeks = [];
   for (let w = 0; w < 5; w++) {
     const week = [];
@@ -93,7 +94,7 @@ export function calendarWindow(data, todayIso, back = 0) {
       week.push({
         iso,
         n: Number(iso.slice(8)),
-        mark: on.has(iso) ? 'session' : null,
+        mark: on.has(iso) ? 'session' : pushups.has(iso) ? 'pushups' : null,
         today: iso === todayIso,
         future: start + w * 7 + d > t,
       });
