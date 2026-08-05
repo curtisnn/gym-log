@@ -28,6 +28,8 @@ const ui = {
   dayOpen: null,      // iso date whose read-only detail sheet is open
   journey: false,     // all-time journey view expanded
   pushN: 10,          // count staged in the Habits quick-add
+  addQ: '',           // add-sheet search text
+  createForm: null,   // { metric, weighted } while the create form is open
 };
 
 const $app = document.getElementById('app');
@@ -333,7 +335,8 @@ function renderEditor() {
   const ex = L.exerciseById(data, entry.exercise);
   const set = entry.sets[si];
   const label = L.settingLabel(ex, set);
-  let h = `<div class="editor"><div class="who"><b>${esc(ex.name)}</b> · set ${si + 1}</div>
+  let h = `<div class="editor"><div class="who"><b>${esc(ex.name)}</b> · set ${si + 1}
+      <button class="skipbtn" data-act="skip">− skip today</button></div>
     <div class="controls">
       <button class="stepbtn" data-act="adj" data-d="-1">−</button>
       <div class="val">${fmtVal(ex, set)}</div>
@@ -365,11 +368,31 @@ function renderSheet() {
     inner += '</table>';
     if (rows.length < 3) inner += `<p class="none">no earlier entries — that’s fine</p>`;
   } else {
-    const options = L.addableExercises(data, active);
-    inner = `<div class="hd"><b>Add exercise</b><button data-act="sheet-close" aria-label="close">✕</button></div>`;
-    inner += options.length
-      ? options.map(ex => `<button class="addrow" data-act="add" data-ex="${ex.id}">${esc(ex.name)}</button>`).join('')
-      : '<p class="none">the whole catalog is already on the sheet</p>';
+    // Search-first: type to find the exercise you did before; only when nothing
+    // matches does "create" appear — duplicates can't exist by construction.
+    const q = ui.addQ.trim();
+    const matches = L.matchExercises(L.addableExercises(data, active), ui.addQ);
+    inner = `<div class="hd"><b>Add exercise</b><button data-act="sheet-close" aria-label="close">✕</button></div>
+      <input type="search" id="add-search" placeholder="search — or name something new"
+        value="${esc(ui.addQ)}" autocomplete="off" autocapitalize="off">`;
+    if (ui.createForm) {
+      const f = ui.createForm;
+      inner += `<div class="createform">
+        <p class="cfname">Create <b>${esc(q)}</b></p>
+        <div class="segrow">
+          <button class="seg ${f.metric === 'reps' ? 'on' : ''}" data-act="create-metric" data-m="reps">reps</button>
+          <button class="seg ${f.metric === 'seconds' ? 'on' : ''}" data-act="create-metric" data-m="seconds">seconds</button>
+          <button class="seg ${f.weighted ? 'on' : ''}" data-act="create-weighted">weighted (lbs)</button>
+        </div>
+        <button class="primary slim" data-act="create-add">Create &amp; add to today</button>
+      </div>`;
+    } else {
+      inner += matches.map(ex => `<button class="addrow" data-act="add" data-ex="${ex.id}">${esc(ex.name)}</button>`).join('');
+      if (q && !matches.some(m => m.name.toLowerCase() === q.toLowerCase())) {
+        inner += `<button class="addrow create" data-act="create-open">＋ Create “${esc(q)}”</button>`;
+      }
+      if (!matches.length && !q) inner += '<p class="none">the whole catalog is already on the sheet</p>';
+    }
   }
   return `<div class="overlay" data-act="sheet-close"></div><div class="sheet">${inner}</div>`;
 }
@@ -515,13 +538,29 @@ const actions = {
   'wu-adj'(el) { active.warmup.pushups = Math.max(0, active.warmup.pushups + +el.dataset.d); store.saveActive(active); },
   'wu-done'() { active.warmup.done = !active.warmup.done; store.saveActive(active); },
   hist(el) { ui.sheet = { kind: 'history', ex: el.dataset.ex }; ui.sel = null; },
-  'add-open'() { ui.sheet = { kind: 'add' }; ui.sel = null; ui.confirmFinish = false; ui.confirmCancel = false; },
+  'add-open'() { ui.sheet = { kind: 'add' }; ui.addQ = ''; ui.createForm = null; ui.sel = null; ui.confirmFinish = false; ui.confirmCancel = false; },
+  skip() {
+    L.removeEntry(active, ui.sel.ei);
+    ui.sel = null;
+    store.saveActive(active);
+  },
+  'create-open'() { ui.createForm = { metric: 'reps', weighted: false }; },
+  'create-metric'(el) { ui.createForm.metric = el.dataset.m; },
+  'create-weighted'() { ui.createForm.weighted = !ui.createForm.weighted; },
+  'create-add'() {
+    const ex = L.createExercise(data, ui.addQ, ui.createForm.metric, ui.createForm.weighted);
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    L.addExercise(data, active, ex.id);
+    ui.sheet = null; ui.addQ = ''; ui.createForm = null;
+    store.saveActive(active);
+  },
   add(el) {
     L.addExercise(data, active, el.dataset.ex);
     ui.sheet = null;
     store.saveActive(active);
   },
-  'sheet-close'() { ui.sheet = null; },
+  'sheet-close'() { ui.sheet = null; ui.addQ = ''; ui.createForm = null; },
   'trend-open'(el) { ui.trendsOpen = ui.trendsOpen === el.dataset.id ? null : el.dataset.id; },
   finish() {
     if (!ui.confirmFinish) { ui.confirmFinish = true; ui.confirmCancel = false; return; }
@@ -545,6 +584,14 @@ const actions = {
     store.clearActive();
   },
 };
+
+document.addEventListener('input', ev => {
+  if (ev.target.id !== 'add-search') return;
+  ui.addQ = ev.target.value;
+  render();
+  const el = document.getElementById('add-search');
+  if (el) { el.focus(); el.setSelectionRange?.(el.value.length, el.value.length); }
+});
 
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]');
