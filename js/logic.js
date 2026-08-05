@@ -145,6 +145,17 @@ export function finishSession(active) {
   };
 }
 
+// One exit for the active session. Finishing (record: true) saves ✓-confirmed work
+// and refuses to end when there is none; cancelling (record: false) always ends and
+// leaves no trace.
+export function endSession(data, active, { record }) {
+  if (!record) return { ended: true, saved: false };
+  const session = finishSession(active);
+  if (!session) return { ended: false, saved: false };
+  data.sessions.push(session);
+  return { ended: true, saved: true, session };
+}
+
 // Last n appearances of an exercise, oldest first.
 export function historyFor(data, exId, n = 3) {
   const rows = [];
