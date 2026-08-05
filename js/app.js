@@ -18,6 +18,9 @@ const ui = {
   busy: false,        // a network call is in flight (setup restore)
   sync: null,         // { state: 'working'|'error'|'auth'|'diverged', msg?, remote? }
   trendsOpen: null,   // id of the expanded trends card
+  calBack: 0,         // how many 5-week windows the History calendar is paged back
+  dayOpen: null,      // iso date whose read-only detail sheet is open
+  journey: false,     // all-time journey view expanded
 };
 
 const $app = document.getElementById('app');
@@ -86,7 +89,7 @@ function renderHome() {
       : 'No sessions yet'}</p>
     ${renderSyncStatus()}
     <button class="primary" data-act="start">Start session</button>
-    <p class="foot"><a href="#trends">Trends</a> · <a href="#rules">Rules</a></p>
+    <p class="foot"><a href="#trends">History &amp; Trends</a> · <a href="#rules">Rules</a></p>
   </div>`;
 }
 
@@ -108,10 +111,22 @@ function renderTrends() {
   const span = T.dateSpan(data);
   const heroChart = { color: '#fff', h: 120, gridColor: 'rgba(255,255,255,.3)', textColor: 'rgba(255,255,255,.75)' };
 
-  const cal = T.calendarMonths(data, todayIso());
-  h += `<div class="card"><h2>Training days</h2><div class="months">${cal.map(mo =>
-    `<div class="month"><div class="mn">${mo.label}</div><div class="days">${'<span></span>'.repeat(mo.lead)}${mo.days.map(d =>
-      `<span class="d ${d.on ? 'on' : ''}">${d.n}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+  const cal = T.calendarWindow(data, todayIso(), ui.calBack);
+  h += `<div class="card"><div class="calhd">
+      <button data-act="cal-back" ${cal.canBack ? '' : 'disabled'} aria-label="earlier">‹</button>
+      <h2>${cal.label}</h2>
+      <button data-act="cal-fwd" ${cal.canForward ? '' : 'disabled'} aria-label="later">›</button></div>
+    <div class="cal5">
+      ${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span class="dow">${d}</span>`).join('')}
+      ${cal.weeks.flat().map(d => d.mark
+        ? `<button class="cd on ${d.today ? 'today' : ''}" data-act="day-open" data-iso="${d.iso}">${d.n}</button>`
+        : `<span class="cd ${d.today ? 'today' : ''} ${d.future ? 'future' : ''}">${d.n}</span>`).join('')}
+    </div>
+    <button class="journeylink" data-act="journey">${ui.journey ? 'hide the journey' : 'the whole journey ↓'}</button>
+    ${ui.journey ? `<div class="months">${T.calendarMonths(data, todayIso()).map(mo =>
+      `<div class="month"><div class="mn">${mo.label}</div><div class="days">${'<span></span>'.repeat(mo.lead)}${mo.days.map(d =>
+        `<span class="d ${d.on ? 'on' : ''}">${d.n}</span>`).join('')}</div></div>`).join('')}</div>` : ''}
+  </div>`;
 
   const assist = T.assistSeries(data);
   if (assist.length) {
@@ -166,7 +181,37 @@ function renderTrends() {
         ${open && c.note ? `<div class="note">${esc(c.note)}</div>` : ''}</button>`;
     }).join('')}</div>`;
   }
-  return h + '</div>';
+  return h + '</div>' + renderDaySheet();
+}
+
+// Read-only paper grid for a saved day, opened from the History calendar.
+function renderDaySheet() {
+  if (!ui.dayOpen) return '';
+  const s = L.sessionOn(data, ui.dayOpen);
+  if (!s) return '';
+  let inner = `<div class="hd"><b>${L.formatDate(s.date)}</b>
+    <button data-act="day-close" aria-label="close">✕</button></div>
+    <table class="grid ro">
+    <tr class="sechead"><td colspan="5">Warm-up</td></tr>
+    <tr><td class="exname"><span class="nm">Warm-up</span></td>
+      <td class="cell"><span class="rocell">${s.warmup?.stretches ? '✓' : '—'}<br><small>stretch</small></span></td>
+      <td class="cell"><span class="rocell">${s.warmup?.pushups ?? 0}×<br><small>push-up</small></span></td>
+      <td class="cell"></td><td class="setg"></td></tr>`;
+  for (const group of L.groupEntries(data, s)) {
+    inner += `<tr class="sechead"><td colspan="5">${esc(group.name)}</td></tr>`;
+    for (const { entry } of group.rows) {
+      const ex = L.exerciseById(data, entry.exercise);
+      const label0 = L.settingLabel(ex, entry.sets[0]);
+      inner += `<tr><td class="exname"><span class="nm">${esc(ex.name)}</span></td>`;
+      for (let si = 0; si < 3; si++) {
+        const set = entry.sets[si];
+        inner += `<td class="cell">${set ? `<span class="rocell">${fmtVal(ex, set)}</span>` : ''}</td>`;
+      }
+      inner += `<td class="setg">${label0 ? `<span>${esc(label0)}</span>` : ''}</td></tr>`;
+    }
+  }
+  inner += '</table>';
+  return `<div class="overlay" data-act="day-close"></div><div class="sheet">${inner}</div>`;
 }
 
 function renderLogging() {
@@ -362,7 +407,12 @@ const actions = {
     ui.justFinished = null;
     store.saveActive(active);
   },
-  back() { location.hash = ''; },
+  back() { location.hash = ''; ui.dayOpen = null; ui.journey = false; ui.calBack = 0; },
+  'cal-back'() { ui.calBack++; },
+  'cal-fwd'() { ui.calBack = Math.max(0, ui.calBack - 1); },
+  journey() { ui.journey = !ui.journey; },
+  'day-open'(el) { ui.dayOpen = el.dataset.iso; },
+  'day-close'() { ui.dayOpen = null; },
   'sel'(el) {
     const sel = { ei: +el.dataset.e, si: +el.dataset.s };
     ui.sel = (ui.sel && !ui.sel.wu && ui.sel.ei === sel.ei && ui.sel.si === sel.si) ? null : sel;

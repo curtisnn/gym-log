@@ -156,6 +156,10 @@ export function endSession(data, active, { record }) {
   return { ended: true, saved: true, session };
 }
 
+export function sessionOn(data, iso) {
+  return data.sessions.find(s => s.date === iso) ?? null;
+}
+
 // Last n appearances of an exercise, oldest first.
 export function historyFor(data, exId, n = 3) {
   const rows = [];

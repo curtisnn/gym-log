@@ -233,3 +233,9 @@ test('finish via endSession: nothing confirmed → does not end, records nothing
   assert.equal(out.saved, false);
   assert.equal(data.sessions.length, before);
 });
+
+test('sessionOn: finds the saved session for a date, or nothing', () => {
+  const data = fixture();
+  assert.equal(L.sessionOn(data, '2026-07-09').entries.length, 4);
+  assert.equal(L.sessionOn(data, '2026-07-10'), null);
+});
