@@ -269,3 +269,61 @@ test('stepSetting: every split-stance squat variant is per-leg', () => {
   assert.equal(set.variant, 'squat');
   assert.ok(!set.perLeg);
 });
+
+// --- weighted extras (issue #19) ---
+
+test('weight: heavier is harder, steps by 5, floors at 0, carries forward', () => {
+  const fly = { id: 'fly', name: 'Fly', metric: 'reps', tracks: 'weightLbs' };
+  const set = { reps: 8, weightLbs: 100 };
+  L.stepSetting(fly, set, 1);
+  assert.equal(set.weightLbs, 105, 'harder = more load — the mirror of assist weight');
+  L.stepSetting(fly, set, -1);
+  L.stepSetting(fly, set, -1);
+  assert.equal(set.weightLbs, 95);
+  assert.equal(L.settingLabel(fly, set), '95 lb');
+  const light = { reps: 8, weightLbs: 0 };
+  L.stepSetting(fly, light, -1);
+  assert.equal(light.weightLbs, 0);
+
+  const entry = { exercise: 'fly', sets: [set, { reps: 8, weightLbs: 100 }, { reps: 8, weightLbs: 100, done: true }] };
+  L.carryForward(entry, 0);
+  assert.equal(entry.sets[1].weightLbs, 95, 'setting change carries to remaining undone sets');
+  assert.equal(entry.sets[2].weightLbs, 100, 'done sets keep their truth');
+});
+
+test('createExercise: created once, found forever, never pre-filled uninvited', () => {
+  const data = fixture();
+  const fly = L.createExercise(data, ' Fly ', 'reps', true);
+  assert.equal(fly.id, 'fly');
+  assert.equal(fly.name, 'Fly');
+  assert.equal(fly.tracks, 'weightLbs');
+  assert.equal(L.createExercise(data, 'FLY', 'reps', true), fly,
+    'creating the same name again returns the existing exercise — duplicates cannot exist');
+
+  const active = L.prefillSession(data, '2026-08-05');
+  assert.ok(!active.entries.some(e => e.exercise === 'fly'), 'extras are never pre-filled');
+  L.addExercise(data, active, 'fly');
+  const entry = active.entries.find(e => e.exercise === 'fly');
+  assert.equal(entry.sets.length, 3);
+  assert.equal(entry.sets[0].weightLbs, 0, 'first time starts empty-barred');
+});
+
+test('matchExercises: substring search over names, case-insensitive', () => {
+  const data = fixture();
+  L.createExercise(data, 'Fly', 'reps', true);
+  const addable = L.addableExercises(data, { entries: [] });
+  assert.deepEqual(L.matchExercises(addable, 'fl').map(e => e.id), ['fly']);
+  assert.ok(L.matchExercises(addable, 'push').some(e => e.id === 'push-up'));
+  assert.equal(L.matchExercises(addable, '').length, addable.length, 'empty query hides nothing');
+});
+
+test('skip today: removes the entry from the active sheet only', () => {
+  const data = fixture();
+  const active = L.prefillSession(data, '2026-08-05');
+  const before = active.entries.length;
+  const gone = active.entries[1].exercise;
+  L.removeEntry(active, 1);
+  assert.equal(active.entries.length, before - 1);
+  assert.ok(!active.entries.some(e => e.exercise === gone));
+  assert.ok(L.addableExercises(data, active).some(ex => ex.id === gone), 'right back in the add sheet');
+});

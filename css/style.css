@@ -220,3 +220,17 @@ h1 { font-size: 22px; font-weight: 800; }
 .chain .c.open { outline: 2px solid var(--blue); outline-offset: -2px; }
 .chain .c.future { opacity: .45; }
 .arcdone { margin-top: 10px; color: var(--accent); font-weight: 600; font-size: 14px; }
+
+/* add-sheet search & create */
+.sheet input[type="search"] {
+  width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 11px 12px; font: 15px/1.4 inherit; margin-bottom: 10px;
+  -webkit-appearance: none;
+}
+.addrow.create { color: var(--accent); }
+.createform .cfname { margin: 4px 0 10px; font-size: 16px; }
+.segrow { display: flex; gap: 8px; margin-bottom: 12px; }
+.seg { flex: 1; padding: 10px 6px; border-radius: 10px; background: var(--card); color: var(--dim); font-size: 13px; font-weight: 600; }
+.seg.on { background: var(--accent-dim); color: var(--accent); }
+.primary.slim { padding: 12px; font-size: 15px; }
+.skipbtn { float: right; color: var(--danger); font-size: 12px; padding: 2px 6px; opacity: .85; }
