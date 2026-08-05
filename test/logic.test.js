@@ -199,3 +199,37 @@ test('formatDate', () => {
   assert.equal(L.formatDate('2026-07-09'), 'Jul 9');
   assert.equal(L.formatDate('2026-12-31'), 'Dec 31');
 });
+
+test('cancel: ends the session and records nothing, even with confirmed sets', () => {
+  const data = fixture();
+  const before = data.sessions.length;
+  const active = L.prefillSession(data, '2026-08-04');
+  active.entries[0].sets[0].done = true;
+  const out = L.endSession(data, active, { record: false });
+  assert.equal(out.ended, true, 'cancel always ends the session');
+  assert.equal(out.saved, false);
+  assert.equal(data.sessions.length, before, 'cancelling leaves no trace');
+});
+
+test('finish via endSession: records confirmed work and ends', () => {
+  const data = fixture();
+  const before = data.sessions.length;
+  const active = L.prefillSession(data, '2026-08-04');
+  active.entries[0].sets[0].done = true;
+  const out = L.endSession(data, active, { record: true });
+  assert.equal(out.ended, true);
+  assert.equal(out.saved, true);
+  assert.equal(data.sessions.length, before + 1);
+  assert.equal(data.sessions.at(-1).date, '2026-08-04');
+  assert.equal(out.session.entries[0].exercise, 'dead-hang');
+});
+
+test('finish via endSession: nothing confirmed → does not end, records nothing', () => {
+  const data = fixture();
+  const before = data.sessions.length;
+  const active = L.prefillSession(data, '2026-08-04');
+  const out = L.endSession(data, active, { record: true });
+  assert.equal(out.ended, false, 'finish refuses an empty session — cancel is the exit');
+  assert.equal(out.saved, false);
+  assert.equal(data.sessions.length, before);
+});

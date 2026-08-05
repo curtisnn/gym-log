@@ -12,6 +12,7 @@ const ui = {
   sel: null,          // { ei, si } | { wu: true } | null — cell the editor bar targets
   sheet: null,        // { kind: 'history', ex } | { kind: 'add' } | null
   confirmFinish: false,
+  confirmCancel: false,
   justFinished: null, // set count of the session just saved, shown once on home
   error: null,        // setup restore error
   busy: false,        // a network call is in flight (setup restore)
@@ -203,6 +204,10 @@ function renderLogging() {
         ? `<button class="primary ${ui.confirmFinish ? 'confirm' : ''}" data-act="finish">
             ${ui.confirmFinish ? 'Tap again to save' : 'Finish session'}</button>`
         : `<button class="primary" disabled>Finish session</button>`}
+    </div>
+    <div class="actions">
+      <button class="ghost ${ui.confirmCancel ? 'confirm-cancel' : ''}" data-act="cancel">
+        ${ui.confirmCancel ? 'Tap again to discard' : 'Cancel session'}</button>
     </div>`;
   return h + renderEditor() + renderSheet();
 }
@@ -362,8 +367,9 @@ const actions = {
     const sel = { ei: +el.dataset.e, si: +el.dataset.s };
     ui.sel = (ui.sel && !ui.sel.wu && ui.sel.ei === sel.ei && ui.sel.si === sel.si) ? null : sel;
     ui.confirmFinish = false;
+    ui.confirmCancel = false;
   },
-  'sel-wu'() { ui.sel = ui.sel?.wu ? null : { wu: true }; ui.confirmFinish = false; },
+  'sel-wu'() { ui.sel = ui.sel?.wu ? null : { wu: true }; ui.confirmFinish = false; ui.confirmCancel = false; },
   adj(el) {
     const { ex, set } = selectedSet();
     L.adjustValue(ex, set, +el.dataset.d);
@@ -384,7 +390,7 @@ const actions = {
   'wu-adj'(el) { active.warmup.pushups = Math.max(0, active.warmup.pushups + +el.dataset.d); store.saveActive(active); },
   'wu-done'() { active.warmup.done = !active.warmup.done; store.saveActive(active); },
   hist(el) { ui.sheet = { kind: 'history', ex: el.dataset.ex }; ui.sel = null; },
-  'add-open'() { ui.sheet = { kind: 'add' }; ui.sel = null; ui.confirmFinish = false; },
+  'add-open'() { ui.sheet = { kind: 'add' }; ui.sel = null; ui.confirmFinish = false; ui.confirmCancel = false; },
   add(el) {
     L.addExercise(data, active, el.dataset.ex);
     ui.sheet = null;
@@ -393,18 +399,25 @@ const actions = {
   'sheet-close'() { ui.sheet = null; },
   'trend-open'(el) { ui.trendsOpen = ui.trendsOpen === el.dataset.id ? null : el.dataset.id; },
   finish() {
-    if (!ui.confirmFinish) { ui.confirmFinish = true; return; }
-    const session = L.finishSession(active);
+    if (!ui.confirmFinish) { ui.confirmFinish = true; ui.confirmCancel = false; return; }
+    const out = L.endSession(data, active, { record: true });
     ui.confirmFinish = false;
-    if (!session) return;
-    ui.justFinished = session.entries.reduce((n, e) => n + e.sets.length, 0);
-    data.sessions.push(session);
+    if (!out.ended) return;
+    ui.justFinished = out.session.entries.reduce((n, e) => n + e.sets.length, 0);
     store.saveData(data);
     store.saveSyncState({ ...store.loadSyncState(), dirty: true });
     active = null;
     ui.sel = null;
     store.clearActive();
     doBackup();
+  },
+  cancel() {
+    if (!ui.confirmCancel) { ui.confirmCancel = true; ui.confirmFinish = false; return; }
+    L.endSession(data, active, { record: false });
+    ui.confirmCancel = false;
+    active = null;
+    ui.sel = null;
+    store.clearActive();
   },
 };
 
