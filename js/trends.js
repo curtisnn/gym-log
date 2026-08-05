@@ -74,6 +74,43 @@ export function variantMarks(pts) {
   return marks;
 }
 
+// Inverse of day(), which rounds the noon timestamp up to epoch-day + 1.
+const isoFromDay = n => new Date((n - 0.5) * 86400000).toISOString().slice(0, 10);
+
+// The History entry point: a rolling five-week window of big, tappable day cells,
+// Sunday-start, ending with the week containing today. `back` pages whole windows
+// into the past. Marks: 'session' for gym days (pushup days arrive with #16).
+export function calendarWindow(data, todayIso, back = 0) {
+  const t = day(todayIso);
+  const weekStart = t - new Date(todayIso + 'T12:00:00Z').getUTCDay();
+  const start = weekStart - 28 - back * 35;
+  const on = new Set(data.sessions.map(s => s.date));
+  const pushups = new Set((data.pushupDays ?? []).map(d => d.date));
+  const weeks = [];
+  for (let w = 0; w < 5; w++) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const iso = isoFromDay(start + w * 7 + d);
+      week.push({
+        iso,
+        n: Number(iso.slice(8)),
+        mark: on.has(iso) ? 'session' : pushups.has(iso) ? 'pushups' : null,
+        today: iso === todayIso,
+        future: start + w * 7 + d > t,
+      });
+    }
+    weeks.push(week);
+  }
+  const first = data.sessions[0] ? day(data.sessions[0].date) : t;
+  const fmt = iso => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8))}`;
+  return {
+    weeks,
+    label: `${fmt(weeks[0][0].iso)} – ${fmt(weeks.at(-1).at(-1).iso)}`,
+    canBack: first < start,
+    canForward: back > 0,
+  };
+}
+
 // Month grids from the first session's month through today. Display only.
 export function calendarMonths(data, todayIso) {
   const on = new Set(data.sessions.map(s => s.date));

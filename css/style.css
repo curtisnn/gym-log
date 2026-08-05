@@ -131,6 +131,7 @@ h1 { font-size: 22px; font-weight: 800; }
   border: 1px solid var(--line); border-bottom: 0;
   padding: 14px 16px calc(26px + env(safe-area-inset-bottom));
   box-shadow: 0 -12px 40px rgba(0,0,0,.6);
+  max-height: 80vh; overflow-y: auto;
 }
 .sheet .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .sheet .hd b { font-size: 17px; }
@@ -151,7 +152,21 @@ h1 { font-size: 22px; font-weight: 800; }
 .trends .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
 .trends .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
 .trends svg { display: block; width: 100%; height: auto; }
-.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+/* History calendar: five paged weeks of big tappable cells */
+.calhd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.calhd h2 { margin: 0; }
+.calhd button { width: 48px; height: 38px; border-radius: 10px; background: var(--card2); color: var(--blue); font-size: 20px; }
+.calhd button:disabled { opacity: .3; }
+.cal5 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal5 .dow { text-align: center; font-size: 10px; color: var(--dim); padding: 2px 0; }
+.cal5 .cd { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 14px; color: #4a5261; background: none; }
+.cal5 button.cd.on { background: var(--accent); color: #08130c; font-weight: 700; }
+.cal5 button.cd.pu { border: 2px solid var(--accent); color: var(--accent); font-weight: 700; }
+.cal5 .cd.today { outline: 2px solid var(--blue); }
+.cal5 .cd.future { opacity: .35; }
+.journeylink { display: block; width: 100%; margin-top: 10px; padding: 8px; background: none; color: var(--blue); font-size: 13px; }
+.sheet .grid.ro .rocell { display: block; padding: 8px 2px; text-align: center; }
+.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
 .month .mn { font-size: 12px; color: var(--dim); text-align: center; margin-bottom: 4px; }
 .month .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .month .days span { aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #4a5261; }
@@ -170,3 +185,52 @@ h1 { font-size: 22px; font-weight: 800; }
 .stat .v small { font-size: 12px; font-weight: 500; color: var(--dim); }
 .stat.open { grid-column: 1 / -1; }
 .stat .note { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+/* ---------- habits page ---------- */
+.habits .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.habits .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+.putotal { font-size: 40px; font-weight: 800; }
+.putotal small { font-size: 14px; font-weight: 600; color: var(--dim); }
+.pusets { margin: 4px 0 10px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pusets .dim, .pudays .dim { color: var(--dim); }
+.puadd { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.puadd .stepbtn { width: 52px; height: 44px; border-radius: 12px; background: var(--card2); color: var(--text); font-size: 20px; }
+.puadd .val { min-width: 40px; text-align: center; font-size: 20px; font-weight: 700; }
+.puadd .primary.slim { flex: 1; padding: 12px; margin: 0; }
+.pudays { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pudays td { padding: 8px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.pudays td.d { color: var(--dim); width: 22%; }
+.pudays td.t { text-align: right; font-weight: 700; width: 15%; }
+.pusum { font-size: 16px; margin-bottom: 10px; }
+.pusum b { font-size: 22px; }
+.pusum small { color: var(--dim); display: block; margin-top: 2px; }
+
+/* the 90/90/1 vote */
+.vnums { font-size: 15px; color: var(--dim); margin-bottom: 10px; }
+.vnums b { color: var(--text); }
+.votebtn {
+  display: block; width: 100%; padding: 14px; border-radius: 14px; margin-bottom: 12px;
+  background: var(--card2); color: var(--blue); font-size: 16px; font-weight: 700;
+}
+.votebtn.on { background: var(--accent-dim); color: var(--accent); }
+.chain { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; }
+.chain .c { aspect-ratio: 1; border-radius: 4px; background: var(--card2); }
+.chain .c.voted { background: var(--accent); }
+.chain .c.missed { background: #3a2a2d; }
+.chain .c.open { outline: 2px solid var(--blue); outline-offset: -2px; }
+.chain .c.future { opacity: .45; }
+.arcdone { margin-top: 10px; color: var(--accent); font-weight: 600; font-size: 14px; }
+
+/* add-sheet search & create */
+.sheet input[type="search"] {
+  width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 11px 12px; font: 15px/1.4 inherit; margin-bottom: 10px;
+  -webkit-appearance: none;
+}
+.addrow.create { color: var(--accent); }
+.createform .cfname { margin: 4px 0 10px; font-size: 16px; }
+.segrow { display: flex; gap: 8px; margin-bottom: 12px; }
+.seg { flex: 1; padding: 10px 6px; border-radius: 10px; background: var(--card); color: var(--dim); font-size: 13px; font-weight: 600; }
+.seg.on { background: var(--accent-dim); color: var(--accent); }
+.primary.slim { padding: 12px; font-size: 15px; }
+.skipbtn { float: right; color: var(--danger); font-size: 12px; padding: 2px 6px; opacity: .85; }

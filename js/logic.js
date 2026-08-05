@@ -1,12 +1,20 @@
 // Pure session/model logic. No DOM, no storage — testable under node.
 // Data shapes per the pinned model: data = { exercises, template, rules, sessions }.
 
-export const SETTING_KEYS = ['assistLbs', 'barHeight', 'variant'];
+export const SETTING_KEYS = ['assistLbs', 'barHeight', 'variant', 'weightLbs'];
+
+// Split-stance squat variants count reps per leg.
+const PER_LEG_VARIANTS = new Set(['split-squat', 'bulgarian', 'bulgarian-loaded']);
 
 export const LABELS = {
-  'bar-low': 'bar (low)', 'ground': 'ground', 'diamond': 'diamond',
+  'knee': 'knee', 'bar-high': 'bar (high)', 'bar-low': 'bar (low)', 'ground': 'ground',
+  'diamond': 'diamond', 'decline': 'decline', 'archer': 'archer',
+  'pseudo-planche': 'pseudo planche', 'one-arm': 'one-arm',
   'squat': 'squat', 'split-squat': 'split squat',
+  'bulgarian': 'bulgarian split', 'bulgarian-loaded': 'loaded bulgarian',
   'knees-bent': 'knees bent', 'straight': 'straight',
+  'relaxed': 'relaxed', 'active': 'active',
+  'regular': 'regular', 'paused-top': 'paused top',
   'at-9': 'bar at 9', 'above-9': 'bar above 9', 'above-8': 'bar above 8', 'below-8': 'bar below 8',
 };
 
@@ -58,6 +66,7 @@ export function prefillEntry(data, exId) {
   if (ex.variants) base.variant = ex.variants[0];
   if (ex.tracks === 'barHeight') base.barHeight = ex.barHeights[0];
   if (ex.tracks === 'assistLbs') base.assistLbs = 0;
+  if (ex.tracks === 'weightLbs') base.weightLbs = 0;
   return {
     exercise: exId,
     sets: Array.from({ length: t?.item.targetSets ?? 3 }, () => ({ ...base, done: false })),
@@ -87,6 +96,7 @@ export function adjustValue(ex, set, delta) {
 
 export function settingLabel(ex, set) {
   if (ex.tracks === 'assistLbs') return set.assistLbs + ' lb';
+  if (ex.tracks === 'weightLbs') return set.weightLbs + ' lb';
   if (ex.tracks === 'barHeight') return LABELS[set.barHeight] ?? set.barHeight;
   if (ex.variants) return LABELS[set.variant] ?? set.variant;
   return null;
@@ -97,6 +107,9 @@ export function settingLabel(ex, set) {
 export function stepSetting(ex, set, dir) {
   if (ex.tracks === 'assistLbs') {
     set.assistLbs = Math.max(0, set.assistLbs - dir * 5);
+  } else if (ex.tracks === 'weightLbs') {
+    // External load: the mirror of assist weight — heavier is harder.
+    set.weightLbs = Math.max(0, set.weightLbs + dir * 5);
   } else if (ex.tracks === 'barHeight') {
     const ladder = ex.barHeights;
     const i = Math.min(ladder.length - 1, Math.max(0, ladder.indexOf(set.barHeight) + dir));
@@ -105,7 +118,7 @@ export function stepSetting(ex, set, dir) {
     const ladder = ex.variants;
     const i = Math.min(ladder.length - 1, Math.max(0, ladder.indexOf(set.variant) + dir));
     set.variant = ladder[i];
-    if (set.variant === 'split-squat') set.perLeg = true;
+    if (PER_LEG_VARIANTS.has(set.variant)) set.perLeg = true;
     else delete set.perLeg;
   }
 }
@@ -156,6 +169,10 @@ export function endSession(data, active, { record }) {
   return { ended: true, saved: true, session };
 }
 
+export function sessionOn(data, iso) {
+  return data.sessions.find(s => s.date === iso) ?? null;
+}
+
 // Last n appearances of an exercise, oldest first.
 export function historyFor(data, exId, n = 3) {
   const rows = [];
@@ -164,6 +181,31 @@ export function historyFor(data, exId, n = 3) {
     if (entry) rows.push({ date: data.sessions[i].date, entry });
   }
   return rows.reverse();
+}
+
+// An exercise is created once, forever; "adding" always means finding it again.
+// Same name (case-insensitive) → the existing entry, so duplicates cannot exist
+// and every appearance stitches into one progression.
+export function createExercise(data, name, metric, weighted) {
+  const clean = name.trim();
+  const id = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const existing = data.exercises.find(e => e.id === id);
+  if (existing) return existing;
+  const ex = { id, name: clean, metric };
+  if (weighted) ex.tracks = 'weightLbs';
+  data.exercises.push(ex);
+  return ex;
+}
+
+export function matchExercises(list, query) {
+  const q = query.trim().toLowerCase();
+  return q ? list.filter(ex => ex.name.toLowerCase().includes(q)) : list;
+}
+
+// Skip today: off the active sheet, nothing else — un-✓'d sets were never
+// going to be recorded anyway, and the add sheet brings it straight back.
+export function removeEntry(active, ei) {
+  active.entries.splice(ei, 1);
 }
 
 export function addableExercises(data, active) {

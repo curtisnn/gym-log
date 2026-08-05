@@ -92,3 +92,53 @@ test('lineChart: a single-session history still renders', () => {
   assert.ok(chart.includes('<circle'));
   assert.ok(!chart.includes('NaN'));
 });
+
+// --- history calendar window (issue #15) ---
+
+test('calendarWindow: 5 Sunday-start weeks ending with today’s week, sessions marked', () => {
+  const w = T.calendarWindow(fixture(), '2026-08-04', 0); // a Tuesday
+  assert.equal(w.weeks.length, 5);
+  assert.ok(w.weeks.every(wk => wk.length === 7));
+  const days = w.weeks.flat();
+  assert.equal(days[0].iso, '2026-07-05', 'window starts 4 weeks before today’s week');
+  assert.equal(days.at(-1).iso, '2026-08-08', 'ends with the Saturday of today’s week');
+  const today = days.find(d => d.iso === '2026-08-04');
+  assert.ok(today.today);
+  assert.equal(days.find(d => d.iso === '2026-07-13').mark, 'session');
+  assert.equal(days.find(d => d.iso === '2026-07-14').mark, null);
+  assert.ok(days.find(d => d.iso === '2026-08-08').future, 'days after today flagged future');
+});
+
+test('calendarWindow: paging reaches every saved day and stops at the first one', () => {
+  const data = fixture();
+  const back1 = T.calendarWindow(data, '2026-08-04', 1);
+  const days1 = back1.weeks.flat();
+  assert.equal(days1[0].iso, '2026-05-31', 'each page steps a whole window');
+  assert.equal(days1.find(d => d.iso === '2026-06-09').mark, 'session');
+  assert.ok(back1.canBack, 'May 18 session still further back');
+  assert.ok(back1.canForward);
+
+  const back2 = T.calendarWindow(data, '2026-08-04', 2);
+  assert.equal(back2.weeks.flat().find(d => d.iso === '2026-05-18').mark, 'session');
+  assert.ok(!back2.canBack, 'nothing saved before this window');
+
+  const front = T.calendarWindow(data, '2026-08-04', 0);
+  assert.ok(front.canBack);
+  assert.ok(!front.canForward, 'already at the present');
+});
+
+test('calendarWindow: labels the visible span', () => {
+  const w = T.calendarWindow(fixture(), '2026-08-04', 0);
+  assert.equal(w.label, 'Jul 5 – Aug 8');
+});
+
+test('calendarWindow: pushup-only days get their own mark; a session wins the day', () => {
+  const data = fixture();
+  data.pushupDays = [
+    { date: '2026-07-20', sets: [10, 12] },     // no session that day
+    { date: '2026-07-13', sets: [14], legacy: true }, // session day — stays a session mark
+  ];
+  const days = T.calendarWindow(data, '2026-08-04', 0).weeks.flat();
+  assert.equal(days.find(d => d.iso === '2026-07-20').mark, 'pushups');
+  assert.equal(days.find(d => d.iso === '2026-07-13').mark, 'session');
+});

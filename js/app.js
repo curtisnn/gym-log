@@ -1,10 +1,16 @@
 import * as L from './logic.js';
 import * as T from './trends.js';
 import * as R from './rules.js';
+import * as H from './habits.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
 
 let data = store.loadData();
+if (data && data.schema !== H.SCHEMA) {
+  H.migrate(data);
+  store.saveData(data);
+  store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+}
 let active = store.loadActive();
 
 // Transient UI state — never persisted.
@@ -18,6 +24,12 @@ const ui = {
   busy: false,        // a network call is in flight (setup restore)
   sync: null,         // { state: 'working'|'error'|'auth'|'diverged', msg?, remote? }
   trendsOpen: null,   // id of the expanded trends card
+  calBack: 0,         // how many 5-week windows the History calendar is paged back
+  dayOpen: null,      // iso date whose read-only detail sheet is open
+  journey: false,     // all-time journey view expanded
+  pushN: 10,          // count staged in the Habits quick-add
+  addQ: '',           // add-sheet search text
+  createForm: null,   // { metric, weighted } while the create form is open
 };
 
 const $app = document.getElementById('app');
@@ -86,7 +98,54 @@ function renderHome() {
       : 'No sessions yet'}</p>
     ${renderSyncStatus()}
     <button class="primary" data-act="start">Start session</button>
-    <p class="foot"><a href="#trends">Trends</a> · <a href="#rules">Rules</a></p>
+    <p class="foot"><a href="#trends">History &amp; Trends</a> · <a href="#habits">Habits</a> · <a href="#rules">Rules</a></p>
+  </div>`;
+}
+
+// The Habits page: two hardcoded daily practices, not a generic engine.
+// Today: the pushup day-log (issue #16). The 90/90/1 vote joins with #17.
+function renderHabits() {
+  const today = todayIso();
+  const day = H.pushupDay(data, today);
+  const recent = H.recentPushupDays(data, 14).filter(d => d.date !== today);
+  return `<div class="page habits">
+    <div class="topbar"><button data-act="back">‹ Back</button><h1>Habits</h1><span></span></div>
+    <div class="card">
+      <h2>Pushups today</h2>
+      <div class="putotal">${day ? day.total : 0}<small> total</small></div>
+      ${day ? `<p class="pusets">${day.manual.join(' · ')}${day.manual.length && day.gym.length ? ' · ' : ''}${day.gym.length ? `<span class="dim">${day.gym.join(' · ')} (gym)</span>` : ''}</p>` : ''}
+      <div class="puadd">
+        <button class="stepbtn" data-act="pu-adj" data-d="-1">−</button>
+        <div class="val">${ui.pushN}</div>
+        <button class="stepbtn" data-act="pu-adj" data-d="1">+</button>
+        <button class="primary slim" data-act="pu-add">Add ${ui.pushN}</button>
+      </div>
+    </div>
+    ${renderVoteCard(today)}
+    <div class="card">
+      <h2>Days</h2>
+      ${recent.length ? `<table class="pudays">${recent.map(d =>
+        `<tr><td class="d">${L.formatDate(d.date)}</td>
+         <td class="s">${d.manual.join(' · ')}${d.manual.length && d.gym.length ? ' · ' : ''}${d.gym.length ? `<span class="dim">${d.gym.join(' · ')}</span>` : ''}</td>
+         <td class="t">${d.total}</td></tr>`).join('')}</table>`
+        : '<p class="none">no pushup days yet</p>'}
+    </div>
+  </div>`;
+}
+
+// The 90/90/1 vote: one active chain (eFinalDate). A vote, not a stopwatch —
+// no minutes, no timer. The chain never marks the training calendar.
+function renderVoteCard(today) {
+  const st = H.voteStatus(data, today);
+  const chain = H.voteChain(data, today);
+  return `<div class="card vote">
+    <h2>90/90/1 · ${esc(data.vote.thing)}</h2>
+    <div class="vnums"><b>Day ${st.dayOfArc} of 90</b> · ${st.streak} in a row</div>
+    <button class="votebtn ${st.voted ? 'on' : ''}" data-act="vote">
+      ${st.voted ? '✓ Voted today' : 'Vote for today'}</button>
+    <div class="chain">${chain.map(c =>
+      `<span class="c ${c.state}${c.today ? ' today' : ''}"></span>`).join('')}</div>
+    ${st.complete ? '<p class="arcdone">Arc complete — time to choose the next one thing.</p>' : ''}
   </div>`;
 }
 
@@ -108,10 +167,22 @@ function renderTrends() {
   const span = T.dateSpan(data);
   const heroChart = { color: '#fff', h: 120, gridColor: 'rgba(255,255,255,.3)', textColor: 'rgba(255,255,255,.75)' };
 
-  const cal = T.calendarMonths(data, todayIso());
-  h += `<div class="card"><h2>Training days</h2><div class="months">${cal.map(mo =>
-    `<div class="month"><div class="mn">${mo.label}</div><div class="days">${'<span></span>'.repeat(mo.lead)}${mo.days.map(d =>
-      `<span class="d ${d.on ? 'on' : ''}">${d.n}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+  const cal = T.calendarWindow(data, todayIso(), ui.calBack);
+  h += `<div class="card"><div class="calhd">
+      <button data-act="cal-back" ${cal.canBack ? '' : 'disabled'} aria-label="earlier">‹</button>
+      <h2>${cal.label}</h2>
+      <button data-act="cal-fwd" ${cal.canForward ? '' : 'disabled'} aria-label="later">›</button></div>
+    <div class="cal5">
+      ${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span class="dow">${d}</span>`).join('')}
+      ${cal.weeks.flat().map(d => d.mark
+        ? `<button class="cd ${d.mark === 'session' ? 'on' : 'pu'} ${d.today ? 'today' : ''}" data-act="day-open" data-iso="${d.iso}">${d.n}</button>`
+        : `<span class="cd ${d.today ? 'today' : ''} ${d.future ? 'future' : ''}">${d.n}</span>`).join('')}
+    </div>
+    <button class="journeylink" data-act="journey">${ui.journey ? 'hide the journey' : 'the whole journey ↓'}</button>
+    ${ui.journey ? `<div class="months">${T.calendarMonths(data, todayIso()).map(mo =>
+      `<div class="month"><div class="mn">${mo.label}</div><div class="days">${'<span></span>'.repeat(mo.lead)}${mo.days.map(d =>
+        `<span class="d ${d.on ? 'on' : ''}">${d.n}</span>`).join('')}</div></div>`).join('')}</div>` : ''}
+  </div>`;
 
   const assist = T.assistSeries(data);
   if (assist.length) {
@@ -166,7 +237,44 @@ function renderTrends() {
         ${open && c.note ? `<div class="note">${esc(c.note)}</div>` : ''}</button>`;
     }).join('')}</div>`;
   }
-  return h + '</div>';
+  return h + '</div>' + renderDaySheet();
+}
+
+// Read-only view of a saved day, opened from the History calendar: the session
+// paper grid (if there was one) plus the day's pushup roll-up.
+function renderDaySheet() {
+  if (!ui.dayOpen) return '';
+  const s = L.sessionOn(data, ui.dayOpen);
+  const pu = H.pushupDay(data, ui.dayOpen);
+  if (!s && !pu) return '';
+  let inner = `<div class="hd"><b>${L.formatDate(ui.dayOpen)}</b>
+    <button data-act="day-close" aria-label="close">✕</button></div>`;
+  if (pu) {
+    inner += `<p class="pusum"><b>${pu.total}</b> pushups
+      <small>${[...pu.manual, ...pu.gym].join(' · ')}${pu.gym.length ? ' (incl. gym)' : ''}</small></p>`;
+  }
+  if (!s) return `<div class="overlay" data-act="day-close"></div><div class="sheet">${inner}</div>`;
+  inner += `<table class="grid ro">
+    <tr class="sechead"><td colspan="5">Warm-up</td></tr>
+    <tr><td class="exname"><span class="nm">Warm-up</span></td>
+      <td class="cell"><span class="rocell">${s.warmup?.stretches ? '✓' : '—'}<br><small>stretch</small></span></td>
+      <td class="cell"><span class="rocell">${s.warmup?.pushups ?? 0}×<br><small>push-up</small></span></td>
+      <td class="cell"></td><td class="setg"></td></tr>`;
+  for (const group of L.groupEntries(data, s)) {
+    inner += `<tr class="sechead"><td colspan="5">${esc(group.name)}</td></tr>`;
+    for (const { entry } of group.rows) {
+      const ex = L.exerciseById(data, entry.exercise);
+      const label0 = L.settingLabel(ex, entry.sets[0]);
+      inner += `<tr><td class="exname"><span class="nm">${esc(ex.name)}</span></td>`;
+      for (let si = 0; si < 3; si++) {
+        const set = entry.sets[si];
+        inner += `<td class="cell">${set ? `<span class="rocell">${fmtVal(ex, set)}</span>` : ''}</td>`;
+      }
+      inner += `<td class="setg">${label0 ? `<span>${esc(label0)}</span>` : ''}</td></tr>`;
+    }
+  }
+  inner += '</table>';
+  return `<div class="overlay" data-act="day-close"></div><div class="sheet">${inner}</div>`;
 }
 
 function renderLogging() {
@@ -227,7 +335,8 @@ function renderEditor() {
   const ex = L.exerciseById(data, entry.exercise);
   const set = entry.sets[si];
   const label = L.settingLabel(ex, set);
-  let h = `<div class="editor"><div class="who"><b>${esc(ex.name)}</b> · set ${si + 1}</div>
+  let h = `<div class="editor"><div class="who"><b>${esc(ex.name)}</b> · set ${si + 1}
+      <button class="skipbtn" data-act="skip">− skip today</button></div>
     <div class="controls">
       <button class="stepbtn" data-act="adj" data-d="-1">−</button>
       <div class="val">${fmtVal(ex, set)}</div>
@@ -259,11 +368,31 @@ function renderSheet() {
     inner += '</table>';
     if (rows.length < 3) inner += `<p class="none">no earlier entries — that’s fine</p>`;
   } else {
-    const options = L.addableExercises(data, active);
-    inner = `<div class="hd"><b>Add exercise</b><button data-act="sheet-close" aria-label="close">✕</button></div>`;
-    inner += options.length
-      ? options.map(ex => `<button class="addrow" data-act="add" data-ex="${ex.id}">${esc(ex.name)}</button>`).join('')
-      : '<p class="none">the whole catalog is already on the sheet</p>';
+    // Search-first: type to find the exercise you did before; only when nothing
+    // matches does "create" appear — duplicates can't exist by construction.
+    const q = ui.addQ.trim();
+    const matches = L.matchExercises(L.addableExercises(data, active), ui.addQ);
+    inner = `<div class="hd"><b>Add exercise</b><button data-act="sheet-close" aria-label="close">✕</button></div>
+      <input type="search" id="add-search" placeholder="search — or name something new"
+        value="${esc(ui.addQ)}" autocomplete="off" autocapitalize="off">`;
+    if (ui.createForm) {
+      const f = ui.createForm;
+      inner += `<div class="createform">
+        <p class="cfname">Create <b>${esc(q)}</b></p>
+        <div class="segrow">
+          <button class="seg ${f.metric === 'reps' ? 'on' : ''}" data-act="create-metric" data-m="reps">reps</button>
+          <button class="seg ${f.metric === 'seconds' ? 'on' : ''}" data-act="create-metric" data-m="seconds">seconds</button>
+          <button class="seg ${f.weighted ? 'on' : ''}" data-act="create-weighted">weighted (lbs)</button>
+        </div>
+        <button class="primary slim" data-act="create-add">Create &amp; add to today</button>
+      </div>`;
+    } else {
+      inner += matches.map(ex => `<button class="addrow" data-act="add" data-ex="${ex.id}">${esc(ex.name)}</button>`).join('');
+      if (q && !matches.some(m => m.name.toLowerCase() === q.toLowerCase())) {
+        inner += `<button class="addrow create" data-act="create-open">＋ Create “${esc(q)}”</button>`;
+      }
+      if (!matches.length && !q) inner += '<p class="none">the whole catalog is already on the sheet</p>';
+    }
   }
   return `<div class="overlay" data-act="sheet-close"></div><div class="sheet">${inner}</div>`;
 }
@@ -271,6 +400,7 @@ function renderSheet() {
 function render() {
   let view;
   if (location.hash === '#rules' && data) view = renderRules();
+  else if (location.hash === '#habits' && data) view = renderHabits();
   else if (location.hash === '#trends' && data) view = renderTrends();
   else if (!data) view = renderSetup();
   else if (active) view = renderLogging();
@@ -324,7 +454,7 @@ const actions = {
       const remote = await sync.getRemote(fetch, token);
       if (remote.status === 'auth') throw new Error('GitHub rejected the token (401).');
       if (remote.status === 'missing') throw new Error('data.json not found in the data repo.');
-      data = L.parseData(JSON.stringify(remote.data));
+      data = H.migrate(L.parseData(JSON.stringify(remote.data)));
       store.saveToken(token);
       store.saveData(data);
       store.saveSyncState({ sha: remote.sha, dirty: false });
@@ -352,7 +482,7 @@ const actions = {
   },
   pull() {
     const { remote } = ui.sync;
-    data = remote.data;
+    data = H.migrate(remote.data);
     store.saveData(data);
     store.saveSyncState({ sha: remote.sha, dirty: false });
     ui.sync = null;
@@ -362,7 +492,25 @@ const actions = {
     ui.justFinished = null;
     store.saveActive(active);
   },
-  back() { location.hash = ''; },
+  back() { location.hash = ''; ui.dayOpen = null; ui.journey = false; ui.calBack = 0; },
+  'cal-back'() { ui.calBack++; },
+  'cal-fwd'() { ui.calBack = Math.max(0, ui.calBack - 1); },
+  journey() { ui.journey = !ui.journey; },
+  'day-open'(el) { ui.dayOpen = el.dataset.iso; },
+  'pu-adj'(el) { ui.pushN = Math.max(1, ui.pushN + +el.dataset.d); },
+  vote() {
+    H.toggleVote(data, todayIso());
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    doBackup();
+  },
+  'pu-add'() {
+    H.addPushups(data, todayIso(), ui.pushN);
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    doBackup();
+  },
+  'day-close'() { ui.dayOpen = null; },
   'sel'(el) {
     const sel = { ei: +el.dataset.e, si: +el.dataset.s };
     ui.sel = (ui.sel && !ui.sel.wu && ui.sel.ei === sel.ei && ui.sel.si === sel.si) ? null : sel;
@@ -390,13 +538,29 @@ const actions = {
   'wu-adj'(el) { active.warmup.pushups = Math.max(0, active.warmup.pushups + +el.dataset.d); store.saveActive(active); },
   'wu-done'() { active.warmup.done = !active.warmup.done; store.saveActive(active); },
   hist(el) { ui.sheet = { kind: 'history', ex: el.dataset.ex }; ui.sel = null; },
-  'add-open'() { ui.sheet = { kind: 'add' }; ui.sel = null; ui.confirmFinish = false; ui.confirmCancel = false; },
+  'add-open'() { ui.sheet = { kind: 'add' }; ui.addQ = ''; ui.createForm = null; ui.sel = null; ui.confirmFinish = false; ui.confirmCancel = false; },
+  skip() {
+    L.removeEntry(active, ui.sel.ei);
+    ui.sel = null;
+    store.saveActive(active);
+  },
+  'create-open'() { ui.createForm = { metric: 'reps', weighted: false }; },
+  'create-metric'(el) { ui.createForm.metric = el.dataset.m; },
+  'create-weighted'() { ui.createForm.weighted = !ui.createForm.weighted; },
+  'create-add'() {
+    const ex = L.createExercise(data, ui.addQ, ui.createForm.metric, ui.createForm.weighted);
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    L.addExercise(data, active, ex.id);
+    ui.sheet = null; ui.addQ = ''; ui.createForm = null;
+    store.saveActive(active);
+  },
   add(el) {
     L.addExercise(data, active, el.dataset.ex);
     ui.sheet = null;
     store.saveActive(active);
   },
-  'sheet-close'() { ui.sheet = null; },
+  'sheet-close'() { ui.sheet = null; ui.addQ = ''; ui.createForm = null; },
   'trend-open'(el) { ui.trendsOpen = ui.trendsOpen === el.dataset.id ? null : el.dataset.id; },
   finish() {
     if (!ui.confirmFinish) { ui.confirmFinish = true; ui.confirmCancel = false; return; }
@@ -420,6 +584,14 @@ const actions = {
     store.clearActive();
   },
 };
+
+document.addEventListener('input', ev => {
+  if (ev.target.id !== 'add-search') return;
+  ui.addQ = ev.target.value;
+  render();
+  const el = document.getElementById('add-search');
+  if (el) { el.focus(); el.setSelectionRange?.(el.value.length, el.value.length); }
+});
 
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]');
