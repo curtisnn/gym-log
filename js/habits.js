@@ -59,11 +59,62 @@ export function recentPushupDays(data, n = 14) {
     .slice(0, n);
 }
 
+export function toggleVote(data, iso) {
+  const i = data.vote.days.indexOf(iso);
+  if (i >= 0) data.vote.days.splice(i, 1);
+  else {
+    data.vote.days.push(iso);
+    data.vote.days.sort();
+  }
+}
+
+const dayNum = iso => Math.round(new Date(iso + 'T12:00:00Z').getTime() / 86400000);
+const ARC = 90;
+
+// The two numbers of 90/90/1: dayOfArc counts calendar days from the start and
+// never resets; streak counts voted days in a row and resets on a miss — but an
+// unvoted today doesn't break yesterday's streak until the day is over.
+export function voteStatus(data, todayIso) {
+  const raw = dayNum(todayIso) - dayNum(data.vote.start) + 1;
+  const voted = data.vote.days.includes(todayIso);
+  const on = new Set(data.vote.days.map(dayNum));
+  let streak = 0;
+  let d = dayNum(todayIso) - (voted ? 0 : 1);
+  while (on.has(d)) { streak++; d--; }
+  return {
+    dayOfArc: Math.min(Math.max(raw, 1), ARC),
+    voted,
+    streak,
+    complete: raw > ARC,
+  };
+}
+
+// The whole arc as 90 cells — seeing the chain is the psychology.
+// States: voted · missed (past, unvoted) · open (today, not yet voted) · future.
+export function voteChain(data, todayIso) {
+  const start = dayNum(data.vote.start);
+  const t = dayNum(todayIso);
+  const on = new Set(data.vote.days.map(dayNum));
+  return Array.from({ length: ARC }, (_, i) => {
+    const d = start + i;
+    return {
+      iso: new Date((d - 0.5) * 86400000).toISOString().slice(0, 10),
+      state: on.has(d) ? 'voted' : d < t ? 'missed' : d === t ? 'open' : 'future',
+      today: d === t,
+    };
+  });
+}
+
 // Upgrade a loaded data file in place to the current shape. Idempotent — runs
 // on every boot, restore, and pull.
 export function migrate(data) {
   if (!data.pushupDays) {
     data.pushupDays = LEGACY_DAYS.map(d => ({ ...d, sets: [...d.sets], legacy: true }));
+  }
+  if (!data.vote) {
+    // The 90/90/1 vote: one active chain, the one thing is eFinalDate,
+    // arc fixed at 90 days from 2026-08-04. A vote, not a stopwatch.
+    data.vote = { thing: 'eFinalDate', start: '2026-08-04', days: [] };
   }
   return data;
 }

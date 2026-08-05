@@ -6,7 +6,7 @@ import * as store from './store.js';
 import * as sync from './sync.js';
 
 let data = store.loadData();
-if (data && !data.pushupDays) {
+if (data && !(data.pushupDays && data.vote)) {
   H.migrate(data);
   store.saveData(data);
   store.saveSyncState({ ...store.loadSyncState(), dirty: true });
@@ -119,6 +119,7 @@ function renderHabits() {
         <button class="primary slim" data-act="pu-add">Add ${ui.pushN}</button>
       </div>
     </div>
+    ${renderVoteCard(today)}
     <div class="card">
       <h2>Days</h2>
       ${recent.length ? `<table class="pudays">${recent.map(d =>
@@ -127,6 +128,22 @@ function renderHabits() {
          <td class="t">${d.total}</td></tr>`).join('')}</table>`
         : '<p class="none">no pushup days yet</p>'}
     </div>
+  </div>`;
+}
+
+// The 90/90/1 vote: one active chain (eFinalDate). A vote, not a stopwatch —
+// no minutes, no timer. The chain never marks the training calendar.
+function renderVoteCard(today) {
+  const st = H.voteStatus(data, today);
+  const chain = H.voteChain(data, today);
+  return `<div class="card vote">
+    <h2>90/90/1 · ${esc(data.vote.thing)}</h2>
+    <div class="vnums"><b>Day ${st.dayOfArc} of 90</b> · ${st.streak} in a row</div>
+    <button class="votebtn ${st.voted ? 'on' : ''}" data-act="vote">
+      ${st.voted ? '✓ Voted today' : 'Vote for today'}</button>
+    <div class="chain">${chain.map(c =>
+      `<span class="c ${c.state}${c.today ? ' today' : ''}"></span>`).join('')}</div>
+    ${st.complete ? '<p class="arcdone">Arc complete — time to choose the next one thing.</p>' : ''}
   </div>`;
 }
 
@@ -458,6 +475,12 @@ const actions = {
   journey() { ui.journey = !ui.journey; },
   'day-open'(el) { ui.dayOpen = el.dataset.iso; },
   'pu-adj'(el) { ui.pushN = Math.max(1, ui.pushN + +el.dataset.d); },
+  vote() {
+    H.toggleVote(data, todayIso());
+    store.saveData(data);
+    store.saveSyncState({ ...store.loadSyncState(), dirty: true });
+    doBackup();
+  },
   'pu-add'() {
     H.addPushups(data, todayIso(), ui.pushN);
     store.saveData(data);

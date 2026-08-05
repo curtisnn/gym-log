@@ -75,3 +75,72 @@ test('recentPushupDays: newest first, rolled up, gym-only days included', () => 
   assert.equal(days[0].total, 22);
   assert.equal(days[1].total, 30);
 });
+
+// --- the 90/90/1 vote (issue #17) ---
+
+test('migrate: creates the vote chain — 90 days from 2026-08-04, eFinalDate, empty', () => {
+  const data = fixture();
+  H.migrate(data);
+  assert.equal(data.vote.start, '2026-08-04');
+  assert.equal(data.vote.thing, 'eFinalDate');
+  assert.deepEqual(data.vote.days, []);
+  data.vote.days.push('2026-08-04');
+  H.migrate(data);
+  assert.deepEqual(data.vote.days, ['2026-08-04'], 'idempotent — never resets an existing chain');
+});
+
+test('toggleVote: one tap votes, another un-votes; the chain stays ordered', () => {
+  const data = H.migrate(fixture());
+  H.toggleVote(data, '2026-08-05');
+  H.toggleVote(data, '2026-08-04');
+  assert.deepEqual(data.vote.days, ['2026-08-04', '2026-08-05']);
+  H.toggleVote(data, '2026-08-05');
+  assert.deepEqual(data.vote.days, ['2026-08-04'], 'mis-tap recovery');
+});
+
+test('voteStatus: arc marches from the start date; streak counts days in a row', () => {
+  const data = H.migrate(fixture());
+  let st = H.voteStatus(data, '2026-08-04');
+  assert.deepEqual({ day: st.dayOfArc, voted: st.voted, streak: st.streak },
+    { day: 1, voted: false, streak: 0 }, 'day 1, nothing yet');
+  H.toggleVote(data, '2026-08-04');
+  st = H.voteStatus(data, '2026-08-04');
+  assert.deepEqual({ day: st.dayOfArc, voted: st.voted, streak: st.streak },
+    { day: 1, voted: true, streak: 1 });
+  H.toggleVote(data, '2026-08-05');
+  // miss the 6th, vote the 7th
+  H.toggleVote(data, '2026-08-07');
+  st = H.voteStatus(data, '2026-08-07');
+  assert.equal(st.dayOfArc, 4, 'a missed day never resets the arc');
+  assert.equal(st.streak, 1, 'a missed day resets the streak');
+});
+
+test('voteStatus: an unvoted today does not break yesterday’s streak', () => {
+  const data = H.migrate(fixture());
+  for (const d of ['2026-08-04', '2026-08-05', '2026-08-06']) H.toggleVote(data, d);
+  const st = H.voteStatus(data, '2026-08-07');
+  assert.equal(st.streak, 3, 'streak holds until the day is actually missed');
+  assert.equal(st.voted, false);
+});
+
+test('voteStatus: the arc completes at 90 and says so', () => {
+  const data = H.migrate(fixture());
+  const st = H.voteStatus(data, '2026-11-05'); // day 94
+  assert.equal(st.dayOfArc, 90, 'caps at the arc length');
+  assert.ok(st.complete);
+  assert.ok(!H.voteStatus(data, '2026-11-01').complete, 'day 90 exactly is the last arc day');
+});
+
+test('voteChain: 90 cells — voted, missed, today, future', () => {
+  const data = H.migrate(fixture());
+  for (const d of ['2026-08-04', '2026-08-06']) H.toggleVote(data, d);
+  const chain = H.voteChain(data, '2026-08-06');
+  assert.equal(chain.length, 90);
+  assert.equal(chain[0].iso, '2026-08-04');
+  assert.equal(chain[0].state, 'voted');
+  assert.equal(chain[1].state, 'missed', 'past unvoted day');
+  assert.equal(chain[2].state, 'voted');
+  assert.ok(chain[2].today);
+  assert.equal(chain[3].state, 'future');
+  assert.equal(chain.at(-1).iso, '2026-11-01');
+});

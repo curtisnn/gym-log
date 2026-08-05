@@ -204,3 +204,19 @@ h1 { font-size: 22px; font-weight: 800; }
 .pusum { font-size: 16px; margin-bottom: 10px; }
 .pusum b { font-size: 22px; }
 .pusum small { color: var(--dim); display: block; margin-top: 2px; }
+
+/* the 90/90/1 vote */
+.vnums { font-size: 15px; color: var(--dim); margin-bottom: 10px; }
+.vnums b { color: var(--text); }
+.votebtn {
+  display: block; width: 100%; padding: 14px; border-radius: 14px; margin-bottom: 12px;
+  background: var(--card2); color: var(--blue); font-size: 16px; font-weight: 700;
+}
+.votebtn.on { background: var(--accent-dim); color: var(--accent); }
+.chain { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; }
+.chain .c { aspect-ratio: 1; border-radius: 4px; background: var(--card2); }
+.chain .c.voted { background: var(--accent); }
+.chain .c.missed { background: #3a2a2d; }
+.chain .c.open { outline: 2px solid var(--blue); outline-offset: -2px; }
+.chain .c.future { opacity: .45; }
+.arcdone { margin-top: 10px; color: var(--accent); font-weight: 600; font-size: 14px; }
